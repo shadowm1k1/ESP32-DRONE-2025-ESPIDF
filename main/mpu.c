@@ -1,0 +1,112 @@
+#include "../include/mpu.h"
+#include <math.h>
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#define RAD_TO_DEG 57.2958f  // 180/pi
+#define ALPHA 0.98f           // Complementary filter coefficient
+
+
+static const char *TAG = "MPU6050";
+
+// Renamed to avoid conflict
+static esp_err_t mpu_write_reg(uint8_t reg, uint8_t data)
+{
+    uint8_t buf[2] = { reg, data };
+    return i2c_master_write_to_device(I2C_MASTER_NUM, MPU6050_ADDR, buf, 2, pdMS_TO_TICKS(100));
+}
+
+static esp_err_t mpu_read_bytes(uint8_t reg, uint8_t *data, size_t len)
+{
+    return i2c_master_write_read_device(I2C_MASTER_NUM, MPU6050_ADDR, &reg, 1, data, len, pdMS_TO_TICKS(100));
+}
+
+esp_err_t mpu_init(void)
+{
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .scl_io_num = I2C_MASTER_SCL_IO,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = I2C_MASTER_FREQ_HZ,
+    };
+
+    ESP_ERROR_CHECK(i2c_param_config(I2C_MASTER_NUM, &conf));
+    ESP_ERROR_CHECK(i2c_driver_install(I2C_MASTER_NUM, conf.mode, 0, 0, 0));
+
+    // Wake up MPU6050
+    ESP_ERROR_CHECK(mpu_write_reg(0x6B, 0x00));
+
+    // Check WHO_AM_I
+    uint8_t who_am_i = 0;
+    ESP_ERROR_CHECK(mpu_read_bytes(0x75, &who_am_i, 1));
+
+    if (who_am_i == 0x68) {
+        ESP_LOGI(TAG, "MPU6050 detected (WHO_AM_I=0x%02X)", who_am_i);
+        return ESP_OK;
+    } else {
+        ESP_LOGE(TAG, "MPU6050 not found! WHO_AM_I=0x%02X", who_am_i);
+        return ESP_FAIL;
+    }
+}
+
+esp_err_t mpu_read_raw(mpu_raw_t *data)
+{
+    uint8_t buf[14];
+    esp_err_t ret = mpu_read_bytes(0x3B, buf, 14);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to read sensor data: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    data->accel_x = (buf[0] << 8) | buf[1];
+    data->accel_y = (buf[2] << 8) | buf[3];
+    data->accel_z = (buf[4] << 8) | buf[5];
+    data->gyro_x  = (buf[8] << 8) | buf[9];
+    data->gyro_y  = (buf[10] << 8) | buf[11];
+    data->gyro_z  = (buf[12] << 8) | buf[13];
+
+    return ESP_OK;
+}
+
+// Single function to calculate roll/pitch with complementary filter
+mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev_angles, float dt)
+{
+    mpu_angles_t angles;
+
+    // Convert accelerometer raw to g
+    float ax = raw.accel_x / 16384.0f;  // ±2g
+    float ay = raw.accel_y / 16384.0f;
+    float az = raw.accel_z / 16384.0f;
+
+    // Convert gyro raw to deg/s
+    float gx = raw.gyro_x / 131.0f;     // ±250 deg/s
+    float gy = raw.gyro_y / 131.0f;
+
+    // Calculate accelerometer angles
+    float accel_roll  = atan2f(ay, az) * RAD_TO_DEG;
+    float accel_pitch = atan2f(-ax, sqrtf(ay*ay + az*az)) * RAD_TO_DEG;
+
+    // Complementary filter
+    angles.roll  = ALPHA * (prev_angles.roll + gx * dt) + (1.0f - ALPHA) * accel_roll;
+    angles.pitch = ALPHA * (prev_angles.pitch + gy * dt) + (1.0f - ALPHA) * accel_pitch;
+
+    return angles;
+}
+
+// Print raw sensor data
+void mpuDebugPrint(mpu_raw_t raw_data)
+{
+    ESP_LOGI(TAG,
+             "Accel [X:%6d  Y:%6d  Z:%6d] | Gyro [X:%6d  Y:%6d  Z:%6d]",
+             raw_data.accel_x, raw_data.accel_y, raw_data.accel_z,
+             raw_data.gyro_x, raw_data.gyro_y, raw_data.gyro_z);
+}
+
+// Print filtered angles
+void mpuPrintAngles(mpu_angles_t angles)
+{
+    ESP_LOGI(TAG, "Roll: %6.2f deg | Pitch: %6.2f deg", angles.roll, angles.pitch);
+}
