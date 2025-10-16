@@ -1,7 +1,8 @@
 #include "../include/motor.h"
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+#define PWM_RESOLUTION 1023
 
 static int motor_pins[MOTOR_COUNT] = {6, 3, 4, 5}; //6 --> topleft 3 --> topright 4 --> botright 5 --> botleft
 
@@ -29,9 +30,17 @@ void Motor_Init(void)
     }
 }
 
+static inline uint8_t clamp_percent(int value)
+{
+    if (value < 0) return 0;
+    if (value > 100) return 100;
+    return value;
+}
+
 void Motor_SetDuty(uint8_t percent, uint8_t num)
 {
-    uint32_t duty = (1023 * percent) / 100;
+    percent = clamp_percent(percent);
+    uint32_t duty = (PWM_RESOLUTION * percent) / 100;
     ledc_set_duty(LEDC_LOW_SPEED_MODE, num, duty);      // num = LEDC channel (0..3)
     ledc_update_duty(LEDC_LOW_SPEED_MODE, num);
 }

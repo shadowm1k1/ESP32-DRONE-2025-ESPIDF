@@ -2,8 +2,11 @@
 #include "freertos/task.h"
 #include "../include/motor.h"
 #include "../include/mpu.h"
+#include "../include/pid.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+
+#define BASE_THROTTLE 40
 
 void app_main(void)
 {
@@ -21,6 +24,13 @@ void app_main(void)
 
     int64_t last_time = esp_timer_get_time(); // microseconds
 
+    PID_t pid_roll, pid_pitch;
+    PID_Init(&pid_roll, 1.0f, 0.5f, 0.1f); //konstanten
+    PID_Init(&pid_pitch, 1.0f, 0.5f, 0.1f); //kostanten
+
+    PID_SetOutputLimits(&pid_roll, -30, 30);
+    PID_SetOutputLimits(&pid_pitch, -30, 30);
+
     while (1) {
         int64_t current_time = esp_timer_get_time();
         float dt = (current_time - last_time) / 1000000.0f; // convert us to seconds
@@ -32,8 +42,33 @@ void app_main(void)
             // Calculate filtered roll/pitch
             angles = mpu_get_filtered_angles(raw_data, angles, dt);
 
+            float roll_output = PID_Compute(&pid_roll, 0.0f, angles.roll, dt);
+            float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.pitch, dt);
+
+            ESP_LOGE("MAIN", "Roll output: %.2f | Pitch output: %.2f", roll_output, pitch_output);
+
+            float m0 = BASE_THROTTLE - roll_output + pitch_output; //top left
+            float m1 = BASE_THROTTLE - roll_output - pitch_output; //top right
+            float m2 = BASE_THROTTLE + roll_output - pitch_output; //bot right
+            float m3 = BASE_THROTTLE + roll_output + pitch_output; //bot left
+
             // Print filtered angles
             mpuPrintAngles(angles);
+
+            if (true) //hier sollte eig killswitch sein von controller
+            {
+                Motor_SetDuty(m0, 0);
+                Motor_SetDuty(m1, 1);
+                Motor_SetDuty(m2, 2);
+                Motor_SetDuty(m3, 3);
+            }
+            else
+            {
+                Motor_SetDuty(0, 0);
+                Motor_SetDuty(0, 1);
+                Motor_SetDuty(0, 2);
+                Motor_SetDuty(0, 3);
+            }
         }
 
     }
