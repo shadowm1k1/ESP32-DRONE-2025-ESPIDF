@@ -9,7 +9,7 @@ void app_main(void)
     
 
     while(1) {
-        Motor_SetDuty(10, 0);
+        Motor_SetDuty(10, 1);
         /*
         // Ramp up 1% → 10%
         for (int p = 1; p <= 10; p++) {
