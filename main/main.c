@@ -20,6 +20,8 @@
 mpu_angles_t angles = {0}; // Initialize filtered angles
 void app_main(void)
 {
+    
+    vTaskDelay(pdMS_TO_TICKS(2000));
     wifi_connection();
     // Initialize motors
     Motor_Init();

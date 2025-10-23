@@ -23,3 +23,5 @@ extern mpu_angles_t angles; // Initialize filtered angles
 void wifi_connection(void);
 void send_integers_continuously(void *pvParameters);
 
+void udp_receiver_task(void *pvParameters);
+

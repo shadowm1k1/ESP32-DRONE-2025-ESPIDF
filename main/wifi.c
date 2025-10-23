@@ -29,6 +29,7 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
     {
         printf("Wifi got IP...\n\n");
         xTaskCreate(send_integers_continuously, "send_integers_continuously", 4096, NULL, 5, NULL);
+        xTaskCreate(udp_receiver_task,"udp_recv", 4096, NULL, 5, NULL);
     }
 }
 
@@ -65,59 +66,72 @@ void wifi_connection(void)
 
 void send_integers_continuously(void *pvParameters)
 {
-    const char *pc_ip = "10.42.68.163";
-    const int pc_port = 8080;
+    const char *dst_ip   = "10.42.68.163";   // PC / drone IP
+    const uint16_t dst_port = 8080;
 
-    struct sockaddr_in dest_addr;
-    dest_addr.sin_addr.s_addr = inet_addr(pc_ip);
-    dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(pc_port);
+    struct sockaddr_in dest_addr = {
+        .sin_family = AF_INET,
+        .sin_port   = htons(dst_port),
+        .sin_addr.s_addr = inet_addr(dst_ip)
+    };
 
-    while (1)
-    {
-        int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-        if (sock < 0)
-        {
-            printf("Unable to create socket: errno %d\n", errno);
-            vTaskDelay(pdMS_TO_TICKS(2000)); // wait before retrying
-            continue;
-        }
-
-        int err = connect(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        if (err != 0)
-        {
-            printf("Socket unable to connect: errno %d\n", errno);
-            close(sock);
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            continue;
-        }
-
-        printf("Connected to PC at %s:%d\n", pc_ip, pc_port);
-
-        // Now continuously send two integers every second
-        while (1)
-        {
-
-            char message[32];
-            snprintf(message, sizeof(message), "pitch: %f, roll: %f", angles.pitch, angles.roll);
-            
-
-            int err_send = send(sock, message, strlen(message), 0);
-            if (err_send < 0)
-            {
-                printf("Error sending data: errno %d\n", errno);
-                break; // connection lost → break inner loop and reconnect
-            }
-            else
-            {
-                printf("Sent: %s\n", message);
-            }
-
-            vTaskDelay(pdMS_TO_TICKS(100)); // send every 0.1 second
-        }
-
-        close(sock);
-        printf("Reconnecting...\n");
-        vTaskDelay(pdMS_TO_TICKS(2000));
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock < 0) {
+        printf("Unable to create UDP socket\n");
+        vTaskDelete(NULL);
     }
+
+    char msg[64];
+    while (1) {
+        snprintf(msg, sizeof(msg), "pitch:%.2f,roll:%.2f",
+                 angles.pitch, angles.roll);
+
+        int err = sendto(sock, msg, strlen(msg), 0,
+                         (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        if (err < 0) {
+            printf("UDP sendto error %d\n", errno);
+        } else {
+            //printf("Sent UDP: %s\n", msg);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+void udp_receiver_task(void *pvParameters)
+{
+    const uint16_t listen_port = 8080;
+
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock < 0) {
+        printf("Unable to create UDP receiver socket\n");
+        vTaskDelete(NULL);
+    }
+
+    struct sockaddr_in dest_addr = {
+        .sin_family      = AF_INET,
+        .sin_port        = htons(listen_port),
+        .sin_addr.s_addr = htonl(INADDR_ANY)
+    };
+
+    if (bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
+        printf("UDP bind failed\n");
+        close(sock);
+        vTaskDelete(NULL);
+    }
+
+    char rx_buffer[128];
+    while (1) {
+        struct sockaddr_in6 source_addr; // large enough for both IPv4/6
+        socklen_t socklen = sizeof(source_addr);
+        int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0,
+                           (struct sockaddr *)&source_addr, &socklen);
+        if (len < 0) {
+            printf("recvfrom failed\n");
+            break;
+        }
+        rx_buffer[len] = 0;
+        printf("Received UDP: %s\n", rx_buffer);
+    }
+    close(sock);
+    vTaskDelete(NULL);
 }
