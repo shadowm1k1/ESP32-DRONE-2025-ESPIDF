@@ -4,6 +4,8 @@ const char *ssid = "Netvorkes";
 const char *pass = "marka1234";
 uint32_t retry_num = 0;
 
+float val1, val2, val3, val4, val5;
+
 static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_id == WIFI_EVENT_STA_START)
@@ -100,7 +102,7 @@ void send_integers_continuously(void *pvParameters)
 
 void udp_receiver_task(void *pvParameters)
 {
-    const uint16_t listen_port = 8080;
+    const uint16_t listen_port = 8081;
 
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
@@ -132,6 +134,12 @@ void udp_receiver_task(void *pvParameters)
         }
         rx_buffer[len] = 0;
         printf("Received UDP: %s\n", rx_buffer);
+        int count = sscanf(rx_buffer, "%f,%f,%f,%f,%f", &val1, &val2, &val3, &val4, &val5);
+        if (count == 5) {
+            printf("Received floats: %.2f %.2f %.2f %.2f %.2f\n", val1, val2, val3, val4, val5);
+        } else {
+            printf("Error parsing floats!\n");
+        }
     }
     close(sock);
     vTaskDelete(NULL);
