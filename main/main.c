@@ -42,8 +42,8 @@ void app_main(void)
     PID_Init(&pid_roll, 1.0f, 0.03f, 0.3f); //konstanten
     PID_Init(&pid_pitch, 1.0f, 0.03f, 0.3f); //kostanten
 
-    PID_SetOutputLimits(&pid_roll, -50, 50);
-    PID_SetOutputLimits(&pid_pitch, -50, 50);
+    PID_SetOutputLimits(&pid_roll, -30, 30);
+    PID_SetOutputLimits(&pid_pitch, -30, 30);
     
 
     while (1) {
