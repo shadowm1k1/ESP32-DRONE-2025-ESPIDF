@@ -19,6 +19,8 @@ extern uint32_t retry_num;
 
 
 extern mpu_angles_t angles; // Initialize filtered angles
+extern float m0, m1, m2, m3;
+
 
 void wifi_connection(void);
 void send_integers_continuously(void *pvParameters);

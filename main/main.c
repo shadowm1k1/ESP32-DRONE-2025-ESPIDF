@@ -14,14 +14,14 @@
 
 
 
-#define BASE_THROTTLE 40
+#define BASE_THROTTLE 100
 
 
 mpu_angles_t angles = {0}; // Initialize filtered angles
+float m0, m1, m2, m3;
+
 void app_main(void)
 {
-    
-    vTaskDelay(pdMS_TO_TICKS(2000));
     wifi_connection();
     // Initialize motors
     Motor_Init();
@@ -39,17 +39,16 @@ void app_main(void)
 
     
     PID_t pid_roll, pid_pitch;
-    PID_Init(&pid_roll, 1.0f, 0.5f, 0.1f); //konstanten
-    PID_Init(&pid_pitch, 1.0f, 0.5f, 0.1f); //kostanten
+    PID_Init(&pid_roll, 1.0f, 0.03f, 0.3f); //konstanten
+    PID_Init(&pid_pitch, 1.0f, 0.03f, 0.3f); //kostanten
 
-    PID_SetOutputLimits(&pid_roll, -30, 30);
-    PID_SetOutputLimits(&pid_pitch, -30, 30);
+    PID_SetOutputLimits(&pid_roll, -50, 50);
+    PID_SetOutputLimits(&pid_pitch, -50, 50);
     
 
     while (1) {
         int64_t current_time = esp_timer_get_time();
         float dt = (current_time - last_time) / 1000000.0f; // convert us to seconds
-        
         last_time = current_time;
 
         // Read raw accelerometer and gyroscope data
@@ -57,14 +56,13 @@ void app_main(void)
             // Calculate filtered roll/pitch
             angles = mpu_get_filtered_angles(raw_data, angles, dt);
 
-            
             float roll_output = PID_Compute(&pid_roll, 0.0f, angles.roll, dt);
             float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.pitch, dt);
 
-            float m0 = BASE_THROTTLE - roll_output + pitch_output; //top left
-            float m1 = BASE_THROTTLE - roll_output - pitch_output; //top right
-            float m2 = BASE_THROTTLE + roll_output - pitch_output; //bot right
-            float m3 = BASE_THROTTLE + roll_output + pitch_output; //bot left
+            m0 = BASE_THROTTLE - roll_output + pitch_output; //top left
+            m1 = BASE_THROTTLE - roll_output - pitch_output; //top right
+            m2 = BASE_THROTTLE + roll_output - pitch_output; //bot right
+            m3 = BASE_THROTTLE + roll_output + pitch_output; //bot left
             
 
             // Print filtered angles

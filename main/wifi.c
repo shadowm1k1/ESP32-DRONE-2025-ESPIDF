@@ -66,7 +66,7 @@ void wifi_connection(void)
 
 void send_integers_continuously(void *pvParameters)
 {
-    const char *dst_ip   = "10.42.68.81";   // PC / drone IP
+    const char *dst_ip   = "10.42.68.163";   // PC / drone IP
     const uint16_t dst_port = 8080;
 
     struct sockaddr_in dest_addr = {
@@ -81,17 +81,17 @@ void send_integers_continuously(void *pvParameters)
         vTaskDelete(NULL);
     }
 
-    char msg[64];
+    char msg[80];
     while (1) {
-        snprintf(msg, sizeof(msg), "pitch:%.2f,roll:%.2f",
-                 angles.pitch, angles.roll);
+        snprintf(msg, sizeof(msg), "pitch: %.2f , roll: %.2f , m0: %.2f, m1: %.2f , m2: %.2f, m3: %.2f",
+                 angles.pitch, angles.roll,m0,m1,m2,m3);
 
         int err = sendto(sock, msg, strlen(msg), 0,
                          (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
-            printf("UDP sendto error %d\n", errno);
+            printf("UDP send to error:  %d\n", errno);
         } else {
-            //printf("Sent UDP: %s\n", msg);
+            printf("Sent UDP: %s\n", msg);
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
