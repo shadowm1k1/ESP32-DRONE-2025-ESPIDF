@@ -28,6 +28,7 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
     else if (event_id == IP_EVENT_STA_GOT_IP)
     {
         printf("Wifi got IP...\n\n");
+        
         xTaskCreate(send_integers_continuously, "send_integers_continuously", 4096, NULL, 5, NULL);
         xTaskCreate(udp_receiver_task,"udp_recv", 4096, NULL, 5, NULL);
     }
@@ -89,9 +90,9 @@ void send_integers_continuously(void *pvParameters)
         int err = sendto(sock, msg, strlen(msg), 0,
                          (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
-            printf("UDP send to error:  %d\n", errno);
+            printf("UDP send error:  %d\n", errno);
         } else {
-            printf("Sent UDP: %s\n", msg);
+            //printf("Sent UDP: %s\n", msg);
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -126,7 +127,7 @@ void udp_receiver_task(void *pvParameters)
         int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0,
                            (struct sockaddr *)&source_addr, &socklen);
         if (len < 0) {
-            printf("recvfrom failed\n");
+            printf("Failed to recive data\n");
             break;
         }
         rx_buffer[len] = 0;
