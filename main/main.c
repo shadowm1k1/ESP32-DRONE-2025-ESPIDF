@@ -19,6 +19,8 @@
 
 mpu_angles_t angles = {0}; // Initialize filtered angles
 float m0, m1, m2, m3;
+bool killswitch = true;
+float v1,v2,v3,v4;
 
 void app_main(void)
 {
@@ -68,7 +70,7 @@ void app_main(void)
             // Print filtered angles
             //mpuPrintAngles(angles);
 
-            if (true) //hier sollte eig killswitch sein von controller
+            if (!killswitch) //hier sollte eig killswitch sein von controller
             {
                 Motor_SetDuty(m0, 0);
                 Motor_SetDuty(m1, 1);

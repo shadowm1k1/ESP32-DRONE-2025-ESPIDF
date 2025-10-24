@@ -3,8 +3,10 @@
 const char *ssid = "Netvorkes";
 const char *pass = "marka1234";
 uint32_t retry_num = 0;
+int temp_ks_int;
 
-float val1, val2, val3, val4, val5;
+extern bool killswitch;
+extern float v1, v2, v3, v4;
 
 static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -133,10 +135,12 @@ void udp_receiver_task(void *pvParameters)
             break;
         }
         rx_buffer[len] = 0;
-        printf("Received UDP: %s\n", rx_buffer);
-        int count = sscanf(rx_buffer, "%f,%f,%f,%f,%f", &val1, &val2, &val3, &val4, &val5);
+        //printf("Received UDP: %s\n", rx_buffer);  <----raw udp
+
+        int count = sscanf(rx_buffer, "%d,%f,%f,%f,%f", &temp_ks_int, &v1, &v2, &v3, &v4);
+        killswitch = (temp_ks_int != 0);
         if (count == 5) {
-            printf("Received floats: %.2f %.2f %.2f %.2f %.2f\n", val1, val2, val3, val4, val5);
+            printf("Received floats: %d %.2f %.2f %.2f %.2f\n", killswitch, v1, v2, v3, v4);
         } else {
             printf("Error parsing floats!\n");
         }
