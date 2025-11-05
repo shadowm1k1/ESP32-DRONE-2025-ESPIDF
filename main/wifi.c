@@ -71,7 +71,7 @@ void wifi_connection(void)
 
 void send_integers_continuously(void *pvParameters)
 {
-    const char *dst_ip   = "10.42.68.163";   // PC / drone IP
+    const char *dst_ip   = "10.42.68.81";   // PC / drone IP
     const uint16_t dst_port = 8080;
 
     struct sockaddr_in dest_addr = {
