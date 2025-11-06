@@ -30,17 +30,9 @@ void Motor_Init(void)
     }
 }
 
-static inline uint8_t clamp_percent(int value)
-{
-    if (value < 0) return 0;
-    if (value > 100) return 100;
-    return value;
-}
 
-void Motor_SetDuty(uint8_t percent, uint8_t num)
+void Motor_SetDuty(uint16_t val, uint8_t num)
 {
-    percent = clamp_percent(percent);
-    uint32_t duty = (PWM_RESOLUTION * percent) / 100;
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, num, duty);      // num = LEDC channel (0..3)
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, num, val);      // num = LEDC channel (0..3)
     ledc_update_duty(LEDC_LOW_SPEED_MODE, num);
 }

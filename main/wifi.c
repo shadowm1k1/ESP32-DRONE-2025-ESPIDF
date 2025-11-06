@@ -6,32 +6,37 @@ uint32_t retry_num = 0;
 int temp_ks_int;
 
 extern bool killswitch;
-extern float v1, v2, v3, v4;
+extern float baseThrottle;
+extern float contthrottle,controll,contpitch,contyaw;
+extern float rollp,rolli,rolld,pitchp,pitchi,pitchd,yawp,yawi,yawd;
 
 static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_id == WIFI_EVENT_STA_START)
     {
-        printf("WIFI CONNECTING....\n");
+        
+        ESP_LOGI(WIFITAG, "WIFI CONNECTING....");
         esp_wifi_connect();
     }
     else if (event_id == WIFI_EVENT_STA_CONNECTED)
     {
-        printf("WiFi CONNECTED\n");
+        
+        ESP_LOGI(WIFITAG, "WiFi CONNECTED");
     }
     else if (event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
-        printf("WiFi lost connection\n");
+        
+        ESP_LOGE(WIFITAG, "WiFi lost connection");
         if (retry_num < 5)
         {
             esp_wifi_connect();
             retry_num++;
-            printf("Retrying to Connect...\n");
+            ESP_LOGI(WIFITAG, "Retrying to Connect...");
         }
     }
     else if (event_id == IP_EVENT_STA_GOT_IP)
     {
-        printf("Wifi got IP...\n\n");
+        ESP_LOGI(WIFITAG, "Wifi got IP...");
         
         xTaskCreate(send_integers_continuously, "send_integers_continuously", 4096, NULL, 5, NULL);
         xTaskCreate(udp_receiver_task,"udp_recv", 4096, NULL, 5, NULL);
@@ -65,8 +70,9 @@ void wifi_connection(void)
     esp_wifi_set_mode(WIFI_MODE_STA); // station mode selected
     esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_configuration); // setting up configs
     esp_wifi_start(); // start WiFi
-
-    printf("wifi_init_softap finished. SSID:%s  password:%s\n", ssid, pass);
+    
+    
+    ESP_LOGI(WIFITAG, "wifi_init_softap finished. SSID:%s  password:%s\n", ssid, pass);
 }
 
 void send_integers_continuously(void *pvParameters)
@@ -82,19 +88,19 @@ void send_integers_continuously(void *pvParameters)
 
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
-        printf("Unable to create UDP socket\n");
+        ESP_LOGE(WIFITAG, "Unable to create UDP socket");
         vTaskDelete(NULL);
     }
 
-    char msg[80];
+    char msg[128];
     while (1) {
-        snprintf(msg, sizeof(msg), "pitch: %.2f , roll: %.2f , m0: %.2f, m1: %.2f , m2: %.2f, m3: %.2f",
-                 angles.pitch, angles.roll,m0,m1,m2,m3);
-
+        snprintf(msg, sizeof(msg), "pitch: %.2f , roll: %.2f , yaw: %.2f, m0: %.2f, m1: %.2f , m2: %.2f, m3: %.2f",
+                 angles.pitch, angles.roll ,angles.yaw,m0,m1,m2,m3);
         int err = sendto(sock, msg, strlen(msg), 0,
                          (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
-            printf("UDP send error:  %d\n", errno);
+            
+        ESP_LOGE(WIFITAG, "UDP send error:  %d", errno);
         } else {
             //printf("Sent UDP: %s\n", msg);
         }
@@ -108,7 +114,8 @@ void udp_receiver_task(void *pvParameters)
 
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
-        printf("Unable to create UDP receiver socket\n");
+        
+        ESP_LOGE(WIFITAG, "Unable to create UDP receiver socket");
         vTaskDelete(NULL);
     }
 
@@ -119,30 +126,35 @@ void udp_receiver_task(void *pvParameters)
     };
 
     if (bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
-        printf("UDP bind failed\n");
+        
+        ESP_LOGE(WIFITAG, "UDP bind failed");
+        
         close(sock);
         vTaskDelete(NULL);
     }
 
-    char rx_buffer[128];
+    char rx_buffer[256];
     while (1) {
         struct sockaddr_in6 source_addr; // large enough for both IPv4/6
         socklen_t socklen = sizeof(source_addr);
         int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0,
                            (struct sockaddr *)&source_addr, &socklen);
         if (len < 0) {
-            printf("Failed to recive data\n");
+            
+            ESP_LOGE(WIFITAG, "Failed to recive data");
             break;
         }
         rx_buffer[len] = 0;
         //printf("Received UDP: %s\n", rx_buffer);  <----raw udp
 
-        int count = sscanf(rx_buffer, "%d,%f,%f,%f,%f", &temp_ks_int, &v1, &v2, &v3, &v4);
+        int count = sscanf(rx_buffer, "%d,%f,%f, %f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f", &temp_ks_int,&contthrottle,&controll,&contpitch,&contyaw, &rollp, &rolli, &rolld, &pitchp, &pitchi, &pitchd, &yawp, &yawi, &yawd, &baseThrottle);
         killswitch = (temp_ks_int != 0);
-        if (count == 5) {
-            printf("Received floats: %d %.2f %.2f %.2f %.2f\n", killswitch, v1, v2, v3, v4);
+
+        if (count == 15) {
+            //printf("Received floats: %d %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n", killswitch,contthrottle, controll, contpitch, contyaw,  rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd,baseThrottle);
         } else {
-            printf("Error parsing floats!\n");
+            
+            ESP_LOGE(WIFITAG, "Error parsing floats!");
         }
     }
     close(sock);

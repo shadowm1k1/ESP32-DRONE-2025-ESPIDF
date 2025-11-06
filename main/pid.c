@@ -34,3 +34,9 @@ float PID_Compute(PID_t *pid, float setpoint, float measured, float dt) {
     pid->prevError = error;
     return output;
 }
+
+void printConsts(PID_t *pid)
+{
+    
+    ESP_LOGI(PIDTAG, " p: %6.2f | i: %6.2f | d: %6.2f", pid->kp, pid->ki,pid->kd);
+}

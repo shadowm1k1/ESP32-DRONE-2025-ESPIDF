@@ -8,4 +8,4 @@
 void Motor_Init(void);
 
 // Set duty cycle of all motors (0-100%)
-void Motor_SetDuty(uint8_t percent, uint8_t num);
+void Motor_SetDuty(uint16_t val, uint8_t num);

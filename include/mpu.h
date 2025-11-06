@@ -22,10 +22,12 @@ typedef struct {
 typedef struct {
     float roll;
     float pitch;
+    float yaw;
 } mpu_angles_t;
 
 // MPU6050 initialization and data read
 esp_err_t mpu_init(void);
+void mpu_calibrate_yaw();
 esp_err_t mpu_read_raw(mpu_raw_t *data);
 
 // Debug printing
