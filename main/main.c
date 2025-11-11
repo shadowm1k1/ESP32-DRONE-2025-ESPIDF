@@ -47,10 +47,18 @@ void control_task(void *pvParameters)
         if (mpu_read_raw(&raw_data) == ESP_OK) {
             angles = mpu_get_filtered_angles(raw_data, angles, dt);
         }
-        
-        float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.roll, dt);
-        float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.pitch, dt);
+        /*
+        PID_SetTunings(&pid_roll,rollp,rolli,rolld);
+        PID_SetTunings(&pid_pitch,pitchp,pitchi,pitchd);
+        PID_SetTunings(&pid_yaw,yawp,yawi,yawd);
+        */
+        float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.pitch, dt); //swaped roll and pitch as they ware wrong --> nose down pitch positive
+        float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.roll, dt);
         float yaw_output   = PID_Compute(&pid_yaw,   0.0f, angles.yaw,  dt);
+
+        roll_output = -roll_output;
+        
+        ESP_LOGE("MAIN", "roll: %.2f  pitch: %.2f  yaw:  %.2f", roll_output, pitch_output ,yaw_output);
 
         m0 = baseThrottle + roll_output + pitch_output + yaw_output;
         m1 = baseThrottle + roll_output - pitch_output - yaw_output;
@@ -95,18 +103,16 @@ void app_main(void)
     PID_Init(&pid_pitch, 0.5f, 0.00f, 0.0f); //kostanten
     PID_Init(&pid_yaw, 0.0f, 0.00f, 0.0f); //kostanten
 
-    PID_SetOutputLimits(&pid_roll, -40, 40);
-    PID_SetOutputLimits(&pid_pitch, -40, 40);
-    PID_SetOutputLimits(&pid_yaw, -40, 40);
-
+    
+    PID_SetOutputLimits(&pid_roll, -200, 200);
+    PID_SetOutputLimits(&pid_pitch, -200, 200);
+    PID_SetOutputLimits(&pid_yaw, -200, 200);
+    
     xTaskCreatePinnedToCore(control_task, "control_task", 4096, NULL, 9, NULL, 0);
 
     // optionally keep app_main busy or delete task:
     vTaskDelete(NULL);
     /*
-    PID_SetTunings(&pid_roll,rollp,rolli,rolld);
-    PID_SetTunings(&pid_pitch,pitchp,pitchi,pitchd);
-    PID_SetTunings(&pid_yaw,yawp,yawi,yawd);
     */
     
 }
