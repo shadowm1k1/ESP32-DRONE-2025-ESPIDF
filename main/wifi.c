@@ -5,6 +5,7 @@ const char *pass = "marka1234";
 uint32_t retry_num = 0;
 int temp_ks_int;
 
+
 extern bool killswitch;
 extern float baseThrottle;
 extern float contthrottle,controll,contpitch,contyaw;
@@ -77,7 +78,7 @@ void wifi_connection(void)
 
 void send_integers_continuously(void *pvParameters)
 {
-    const char *dst_ip   = "10.42.68.81";   // PC / drone IP
+    const char *dst_ip   = "10.209.31.81";   // PC / drone IP
     const uint16_t dst_port = 8080;
 
     struct sockaddr_in dest_addr = {

@@ -35,6 +35,8 @@ void control_task(void *pvParameters)
     TickType_t last_wake_time = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(10); // 100 Hz
     int64_t last_time = esp_timer_get_time();    // microseconds for dt
+    
+    static int sensor_error_count = 0;
 
     while (1) {
 
@@ -45,7 +47,15 @@ void control_task(void *pvParameters)
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
         if (mpu_read_raw(&raw_data) == ESP_OK) {
+            sensor_error_count = 0;
             angles = mpu_get_filtered_angles(raw_data, angles, dt);
+        }
+        else {
+            sensor_error_count++;
+            if (sensor_error_count > 10) { // z.B. 100ms Fehler
+                ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
+                killswitch = true;
+            }
         }
         /*
         PID_SetTunings(&pid_roll,rollp,rolli,rolld);
@@ -80,6 +90,15 @@ void control_task(void *pvParameters)
             Motor_SetDuty(0, 1);
             Motor_SetDuty(0, 2);
             Motor_SetDuty(0, 3);
+
+            // PID-Integrator Rücksetzen
+            pid_roll.integral = 0;
+            pid_pitch.integral = 0;
+            pid_yaw.integral = 0;
+            // Optional auch prevError auf 0 setzen
+            pid_roll.prevError = 0;
+            pid_pitch.prevError = 0;
+            pid_yaw.prevError = 0;
         }
         vTaskDelayUntil(&last_wake_time, period);
     }
@@ -111,7 +130,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(control_task, "control_task", 4096, NULL, 9, NULL, 0);
 
     // optionally keep app_main busy or delete task:
-    vTaskDelete(NULL);
+    vTaskDelete(NULL);  
     /*
     */
     
