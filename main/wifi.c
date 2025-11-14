@@ -16,36 +16,36 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
     if (event_id == WIFI_EVENT_STA_START)
     {
         
-        ESP_LOGI(WIFITAG, "WIFI CONNECTING....");
+        //ESP_LOGI(WIFITAG, "WIFI CONNECTING....");
         esp_wifi_connect();
     }
     else if (event_id == WIFI_EVENT_STA_CONNECTED)
     {
         
-        ESP_LOGI(WIFITAG, "WiFi CONNECTED");
+        //ESP_LOGI(WIFITAG, "WiFi CONNECTED");
     }
     else if (event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
         
-        ESP_LOGE(WIFITAG, "WiFi lost connection");
+        //ESP_LOGE(WIFITAG, "WiFi lost connection");
         if (retry_num < 5)
         {
             esp_wifi_connect();
             retry_num++;
-            ESP_LOGI(WIFITAG, "Retrying to Connect...");
+            //ESP_LOGI(WIFITAG, "Retrying to Connect...");
         }
     }
     else if (event_id == IP_EVENT_STA_GOT_IP)
     {
-        ESP_LOGI(WIFITAG, "Wifi got IP...");
+        //ESP_LOGI(WIFITAG, "Wifi got IP...");
         
-        xTaskCreate(send_integers_continuously, "send_integers_continuously", 4096, NULL, 5, NULL);
-        xTaskCreate(udp_receiver_task,"udp_recv", 4096, NULL, 5, NULL);
+        xTaskCreate(send_integers_continuously, "send_integers_continuously", 6144, NULL, 3, NULL);
+        xTaskCreate(udp_receiver_task,"udp_recv", 6144, NULL, 3, NULL);
     }
 }
 
 void wifi_connection(void)
-{
+{   
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
@@ -73,7 +73,7 @@ void wifi_connection(void)
     esp_wifi_start(); // start WiFi
     
     
-    ESP_LOGI(WIFITAG, "wifi_init_softap finished. SSID:%s  password:%s\n", ssid, pass);
+    //ESP_LOGI(WIFITAG, "wifi_init_softap finished. SSID:%s  password:%s\n", ssid, pass);
 }
 
 void send_integers_continuously(void *pvParameters)
@@ -89,7 +89,7 @@ void send_integers_continuously(void *pvParameters)
 
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
-        ESP_LOGE(WIFITAG, "Unable to create UDP socket");
+        //ESP_LOGE(WIFITAG, "Unable to create UDP socket");
         vTaskDelete(NULL);
     }
 
@@ -101,7 +101,7 @@ void send_integers_continuously(void *pvParameters)
                          (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
             
-        ESP_LOGE(WIFITAG, "UDP send error:  %d", errno);
+        //ESP_LOGE(WIFITAG, "UDP send error:  %d", errno);
         } else {
             //printf("Sent UDP: %s\n", msg);
         }
@@ -116,7 +116,7 @@ void udp_receiver_task(void *pvParameters)
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
         
-        ESP_LOGE(WIFITAG, "Unable to create UDP receiver socket");
+        //ESP_LOGE(WIFITAG, "Unable to create UDP receiver socket");
         vTaskDelete(NULL);
     }
 
@@ -128,7 +128,7 @@ void udp_receiver_task(void *pvParameters)
 
     if (bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
         
-        ESP_LOGE(WIFITAG, "UDP bind failed");
+        //ESP_LOGE(WIFITAG, "UDP bind failed");
         
         close(sock);
         vTaskDelete(NULL);
@@ -142,7 +142,7 @@ void udp_receiver_task(void *pvParameters)
                            (struct sockaddr *)&source_addr, &socklen);
         if (len < 0) {
             
-            ESP_LOGE(WIFITAG, "Failed to recive data");
+            //ESP_LOGE(WIFITAG, "Failed to recive data");
             break;
         }
         rx_buffer[len] = 0;
@@ -155,8 +155,10 @@ void udp_receiver_task(void *pvParameters)
             //printf("Received floats: %d %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n", killswitch,contthrottle, controll, contpitch, contyaw,  rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd,baseThrottle);
         } else {
             
-            ESP_LOGE(WIFITAG, "Error parsing floats!");
+            //ESP_LOGE(WIFITAG, "Error parsing floats!");
         }
+        
+        vTaskDelay(pdMS_TO_TICKS(25));
     }
     close(sock);
     vTaskDelete(NULL);

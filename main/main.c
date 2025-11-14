@@ -6,6 +6,8 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include <math.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 
 
@@ -53,22 +55,22 @@ void control_task(void *pvParameters)
         else {
             sensor_error_count++;
             if (sensor_error_count > 10) { // z.B. 100ms Fehler
-                ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
+                //ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
                 killswitch = true;
             }
         }
-        /*
+        
         PID_SetTunings(&pid_roll,rollp,rolli,rolld);
         PID_SetTunings(&pid_pitch,pitchp,pitchi,pitchd);
         PID_SetTunings(&pid_yaw,yawp,yawi,yawd);
-        */
+        
         float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.pitch, dt); //swaped roll and pitch as they ware wrong --> nose down pitch positive
         float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.roll, dt);
         float yaw_output   = PID_Compute(&pid_yaw,   0.0f, angles.yaw,  dt);
 
         roll_output = -roll_output;
         
-        ESP_LOGE("MAIN", "roll: %.2f  pitch: %.2f  yaw:  %.2f", roll_output, pitch_output ,yaw_output);
+        //ESP_LOGE("MAIN", "roll: %.2f  pitch: %.2f  yaw:  %.2f", roll_output, pitch_output ,yaw_output);
 
         m0 = baseThrottle + roll_output + pitch_output + yaw_output;
         m1 = baseThrottle + roll_output - pitch_output - yaw_output;
@@ -113,7 +115,7 @@ void app_main(void)
 
     // Initialize MPU6050
     if (mpu_init() != ESP_OK) {
-        ESP_LOGE("MAIN", "Failed to initialize MPU6050");
+        //ESP_LOGE("MAIN", "Failed to initialize MPU6050");
         return;
     }
     mpu_calibrate_yaw();
