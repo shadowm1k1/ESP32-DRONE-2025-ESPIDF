@@ -5,7 +5,7 @@
 #include "freertos/task.h"
 
 #define RAD_TO_DEG 57.2958f  // 180/pi
-#define ALPHA 0.98f          // Complementary filter coefficient
+#define ALPHA 0.9f          // Complementary filter coefficient
 
 static const char *MPUTAG = "MPU6050";
 
@@ -107,8 +107,8 @@ mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev, float dt)
     float gy = raw.gyro_y / 131.0f;
     float gz = raw.gyro_z / 131.0f;
 
-    float accel_roll  = atan2f(ay, az) * RAD_TO_DEG;
-    float accel_pitch = atan2f(-ax, sqrtf(ay*ay + az*az)) * RAD_TO_DEG;
+    float accel_roll  = atan2f(-ax, sqrtf(ay*ay + az*az)) * RAD_TO_DEG;
+    float accel_pitch = -atan2f(ay, az) * RAD_TO_DEG;
 
     angles.roll  = ALPHA * (prev.roll  + gx * dt) + (1 - ALPHA) * accel_roll;
     angles.pitch = ALPHA * (prev.pitch + gy * dt) + (1 - ALPHA) * accel_pitch;
@@ -121,7 +121,7 @@ mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev, float dt)
 }
 
 void mpuDebugPrint(mpu_raw_t raw_data)
-{
+
    // ESP_LOGI(MPUTAG, "Accel [X:%6d  Y:%6d  Z:%6d] | Gyro [X:%6d  Y:%6d  Z:%6d]", raw_data.accel_x, raw_data.accel_y, raw_data.accel_z,raw_data.gyro_x, raw_data.gyro_y, raw_data.gyro_z);
 }
 

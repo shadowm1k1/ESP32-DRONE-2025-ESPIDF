@@ -23,8 +23,7 @@ void Motor_Init(void)
             .speed_mode     = LEDC_LOW_SPEED_MODE,
             .channel        = i,
             .timer_sel      = LEDC_TIMER_0,
-            .duty           = 0,
-            .hpoint         = 0
+            .duty           = 0
         };
         ledc_channel_config(&ledc_channel);
     }

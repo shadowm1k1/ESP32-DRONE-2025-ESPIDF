@@ -18,10 +18,6 @@
 
 
 
-#define CONTROL_HZ           100
-#define CONTROL_PERIOD_US    (1000000 / CONTROL_HZ) 
-
-
 mpu_angles_t angles = {0}; // Initialize filtered angles
 float m0, m1, m2, m3;
 volatile float baseThrottle = 0;
@@ -45,17 +41,19 @@ void control_task(void *pvParameters)
         int64_t now = esp_timer_get_time();
         float dt = (now - last_time) / 1000000.0f; // convert us -> seconds
         last_time = now;
+        
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
         if (mpu_read_raw(&raw_data) == ESP_OK) {
             sensor_error_count = 0;
             angles = mpu_get_filtered_angles(raw_data, angles, dt);
+            
         }
         else {
             sensor_error_count++;
             if (sensor_error_count > 10) { // z.B. 100ms Fehler
-                //ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
+                ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
                 killswitch = true;
             }
         }
@@ -64,18 +62,19 @@ void control_task(void *pvParameters)
         PID_SetTunings(&pid_pitch,pitchp,pitchi,pitchd);
         PID_SetTunings(&pid_yaw,yawp,yawi,yawd);
         
-        float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.pitch, dt); //swaped roll and pitch as they ware wrong --> nose down pitch positive
-        float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.roll, dt);
+        float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.roll, dt); //swaped roll and pitch as they ware wrong --> nose down pitch positive
+        float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.pitch, dt);
         float yaw_output   = PID_Compute(&pid_yaw,   0.0f, angles.yaw,  dt);
 
-        roll_output = -roll_output;
-        
-        //ESP_LOGE("MAIN", "roll: %.2f  pitch: %.2f  yaw:  %.2f", roll_output, pitch_output ,yaw_output);
+        ESP_LOGE("MAIN", "roll: %.2f  pitch: %.2f  yaw:  %.2f", roll_output, pitch_output ,yaw_output);
 
-        m0 = baseThrottle + roll_output + pitch_output + yaw_output;
-        m1 = baseThrottle + roll_output - pitch_output - yaw_output;
-        m2 = baseThrottle - roll_output - pitch_output + yaw_output;
-        m3 = baseThrottle - roll_output + pitch_output - yaw_output;
+        
+
+        m0 = baseThrottle - roll_output + pitch_output + yaw_output;  // front-left
+        m1 = baseThrottle + roll_output + pitch_output - yaw_output;  // front-right
+        m2 = baseThrottle + roll_output - pitch_output + yaw_output;  // rear-right
+        m3 = baseThrottle - roll_output - pitch_output - yaw_output;  // rear-left
+
 
         m0 = fminf(fmaxf(m0, 0.0f), 1023.0f);
         m1 = fminf(fmaxf(m1, 0.0f), 1023.0f);
@@ -125,9 +124,9 @@ void app_main(void)
     PID_Init(&pid_yaw, 0.0f, 0.00f, 0.0f); //kostanten
 
     
-    PID_SetOutputLimits(&pid_roll, -200, 200);
-    PID_SetOutputLimits(&pid_pitch, -200, 200);
-    PID_SetOutputLimits(&pid_yaw, -200, 200);
+    PID_SetOutputLimits(&pid_roll, -300, 300);
+    PID_SetOutputLimits(&pid_pitch, -300, 300);
+    PID_SetOutputLimits(&pid_yaw, -300, 300);
     
     xTaskCreatePinnedToCore(control_task, "control_task", 4096, NULL, 9, NULL, 0);
 
