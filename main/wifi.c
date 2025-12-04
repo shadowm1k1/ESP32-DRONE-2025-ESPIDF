@@ -39,8 +39,8 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
     {
         //ESP_LOGI(WIFITAG, "Wifi got IP...");
         
-        xTaskCreate(send_integers_continuously, "send_integers_continuously", 6144, NULL, 3, NULL);
-        xTaskCreate(udp_receiver_task,"udp_recv", 6144, NULL, 3, NULL);
+        xTaskCreate(send_integers_continuously, "send_integers_continuously", 6144, NULL, 5, NULL);
+        xTaskCreate(udp_receiver_task,"udp_recv", 6144, NULL, 5, NULL);
     }
 }
 

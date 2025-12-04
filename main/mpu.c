@@ -121,7 +121,7 @@ mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev, float dt)
 }
 
 void mpuDebugPrint(mpu_raw_t raw_data)
-
+{
    // ESP_LOGI(MPUTAG, "Accel [X:%6d  Y:%6d  Z:%6d] | Gyro [X:%6d  Y:%6d  Z:%6d]", raw_data.accel_x, raw_data.accel_y, raw_data.accel_z,raw_data.gyro_x, raw_data.gyro_y, raw_data.gyro_z);
 }
 

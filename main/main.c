@@ -30,18 +30,35 @@ PID_t pid_roll, pid_pitch, pid_yaw;
 
 void control_task(void *pvParameters)
 {
+    const TickType_t period_ticks = pdMS_TO_TICKS(1);
     TickType_t last_wake_time = xTaskGetTickCount();
-    const TickType_t period = pdMS_TO_TICKS(10); // 100 Hz
-    int64_t last_time = esp_timer_get_time();    // microseconds for dt
-    
+
+    int64_t last_time = esp_timer_get_time();
     static int sensor_error_count = 0;
 
-    while (1) {
+    
+    int64_t last_print_time = esp_timer_get_time();
+    float dt_sum = 0.0f;
+    int dt_count = 0;
 
+    while (1) {
         int64_t now = esp_timer_get_time();
-        float dt = (now - last_time) / 1000000.0f; // convert us -> seconds
+        float dt = (now - last_time) * 1e-6f; // seconds
         last_time = now;
+
+        if (dt < 0.0005f) dt = 0.0005f;   // min 0.5 ms
+        if (dt > 0.0050f) dt = 0.0050f;   // max 5.0 ms
+
+        dt_sum += dt;
+        dt_count++;
         
+        if ((now - last_print_time) >= 1000000) { // 1 second in microseconds
+            float avg_dt = dt_sum / dt_count;
+            ESP_LOGI("CONTROL", "Average dt over last second: %.6f s", avg_dt);
+            dt_sum = 0.0f;
+            dt_count = 0;
+            last_print_time = now;
+        }
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
@@ -53,7 +70,7 @@ void control_task(void *pvParameters)
         else {
             sensor_error_count++;
             if (sensor_error_count > 10) { // z.B. 100ms Fehler
-                ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
+                //ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
                 killswitch = true;
             }
         }
@@ -64,11 +81,7 @@ void control_task(void *pvParameters)
         
         float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.roll, dt); //swaped roll and pitch as they ware wrong --> nose down pitch positive
         float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.pitch, dt);
-        float yaw_output   = PID_Compute(&pid_yaw,   0.0f, angles.yaw,  dt);
-
-        ESP_LOGE("MAIN", "roll: %.2f  pitch: %.2f  yaw:  %.2f", roll_output, pitch_output ,yaw_output);
-
-        
+        float yaw_output   = PID_Compute(&pid_yaw,   0.0f, angles.yaw,  dt);        
 
         m0 = baseThrottle - roll_output + pitch_output + yaw_output;  // front-left
         m1 = baseThrottle + roll_output + pitch_output - yaw_output;  // front-right
@@ -101,7 +114,8 @@ void control_task(void *pvParameters)
             pid_pitch.prevError = 0;
             pid_yaw.prevError = 0;
         }
-        vTaskDelayUntil(&last_wake_time, period);
+        
+        vTaskDelayUntil(&last_wake_time, period_ticks);
     }
 }
 
@@ -128,7 +142,7 @@ void app_main(void)
     PID_SetOutputLimits(&pid_pitch, -300, 300);
     PID_SetOutputLimits(&pid_yaw, -300, 300);
     
-    xTaskCreatePinnedToCore(control_task, "control_task", 4096, NULL, 9, NULL, 0);
+    xTaskCreatePinnedToCore(control_task, "control_task", 8192, NULL, 9, NULL, 0);
 
     // optionally keep app_main busy or delete task:
     vTaskDelete(NULL);  
