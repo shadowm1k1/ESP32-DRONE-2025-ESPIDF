@@ -53,11 +53,15 @@ void control_task(void *pvParameters)
         dt_count++;
         
         if ((now - last_print_time) >= 1000000) { // 1 second in microseconds
+            /*
             float avg_dt = dt_sum / dt_count;
             ESP_LOGI("CONTROL", "Average dt over last second: %.6f s", avg_dt);
             dt_sum = 0.0f;
             dt_count = 0;
+            */
+           ESP_LOGE(PIDTAG,"%f", pid_roll.integral);
             last_print_time = now;
+           
         }
 
         // --- Sensor read + PID + motor update ---
@@ -79,16 +83,16 @@ void control_task(void *pvParameters)
         PID_SetTunings(&pid_pitch,pitchp,pitchi,pitchd);
         PID_SetTunings(&pid_yaw,yawp,yawi,yawd);
         
-        float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.roll, dt); //swaped roll and pitch as they ware wrong --> nose down pitch positive
+        float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.roll, dt); 
         float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.pitch, dt);
         float yaw_output   = PID_Compute(&pid_yaw,   0.0f, angles.yaw,  dt);        
 
-        m0 = baseThrottle - roll_output + pitch_output + yaw_output;  // front-left
-        m1 = baseThrottle + roll_output + pitch_output - yaw_output;  // front-right
-        m2 = baseThrottle + roll_output - pitch_output + yaw_output;  // rear-right
-        m3 = baseThrottle - roll_output - pitch_output - yaw_output;  // rear-left
+        m0 = baseThrottle + roll_output + pitch_output + yaw_output;  // front-left
+        m1 = baseThrottle - roll_output + pitch_output - yaw_output;  // front-right
+        m2 = baseThrottle - roll_output - pitch_output + yaw_output;  // rear-right
+        m3 = baseThrottle + roll_output - pitch_output - yaw_output;  // rear-left
 
-
+        
         m0 = fminf(fmaxf(m0, 0.0f), 1023.0f);
         m1 = fminf(fmaxf(m1, 0.0f), 1023.0f);
         m2 = fminf(fmaxf(m2, 0.0f), 1023.0f);
@@ -109,10 +113,6 @@ void control_task(void *pvParameters)
             pid_roll.integral = 0;
             pid_pitch.integral = 0;
             pid_yaw.integral = 0;
-            // Optional auch prevError auf 0 setzen
-            pid_roll.prevError = 0;
-            pid_pitch.prevError = 0;
-            pid_yaw.prevError = 0;
         }
         
         vTaskDelayUntil(&last_wake_time, period_ticks);

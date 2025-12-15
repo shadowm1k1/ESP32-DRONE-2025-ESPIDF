@@ -152,7 +152,7 @@ void udp_receiver_task(void *pvParameters)
         killswitch = (temp_ks_int != 0);
 
         if (count == 15) {
-            //printf("Received floats: %d %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n", killswitch,contthrottle, controll, contpitch, contyaw,  rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd,baseThrottle);
+            //printf("Received floats: %d %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n",temp_ks_int ,contthrottle, controll, contpitch, contyaw,  rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd);
         } else {
             
             //ESP_LOGE(WIFITAG, "Error parsing floats!");

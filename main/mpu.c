@@ -5,7 +5,7 @@
 #include "freertos/task.h"
 
 #define RAD_TO_DEG 57.2958f  // 180/pi
-#define ALPHA 0.9f          // Complementary filter coefficient
+#define ALPHA 0.98f          // Complementary filter coefficient
 
 static const char *MPUTAG = "MPU6050";
 
