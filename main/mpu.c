@@ -1,18 +1,17 @@
 #include "../include/mpu.h"
+#include "sdkconfig.h"  
 #include <math.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#define RAD_TO_DEG 57.2958f  // 180/pi
-#define ALPHA 0.98f          // Complementary filter coefficient
-
 static const char *MPUTAG = "MPU6050";
 
-// Gyro Z offset for yaw calibration
+// Gyro offsets for calibration
+static float gyro_x_offset = 0.0f;  
+static float gyro_y_offset = 0.0f;
 static float gyro_z_offset = 0.0f;
 
-// Renamed to avoid conflict
 static esp_err_t mpu_write_reg(uint8_t reg, uint8_t data)
 {
     uint8_t buf[2] = { reg, data };
@@ -46,10 +45,10 @@ esp_err_t mpu_init(void)
     ESP_ERROR_CHECK(mpu_read_bytes(0x75, &who_am_i, 1));
 
     if (who_am_i == 0x68) {
-        //ESP_LOGI(MPUTAG, "MPU6050 detected (WHO_AM_I=0x%02X)", who_am_i);
+        ESP_LOGI(MPUTAG, "MPU6050 detected");
         return ESP_OK;
     } else {
-        //ESP_LOGE(MPUTAG, "MPU6050 not found! WHO_AM_I=0x%02X", who_am_i);
+        ESP_LOGE(MPUTAG, "MPU6050 not found! WHO_AM_I=0x%02X", who_am_i);
         return ESP_FAIL;
     }
 }
@@ -59,7 +58,6 @@ esp_err_t mpu_read_raw(mpu_raw_t *data)
     uint8_t buf[14];
     esp_err_t ret = mpu_read_bytes(0x3B, buf, 14);
     if (ret != ESP_OK) {
-        //ESP_LOGE(MPUTAG, "Failed to read sensor data: %s", esp_err_to_name(ret));
         return ret;
     }
 
@@ -73,59 +71,47 @@ esp_err_t mpu_read_raw(mpu_raw_t *data)
     return ESP_OK;
 }
 
-/*************** YAW CALIBRATION ****************/
-void mpu_calibrate_yaw()
+/*************** GYRO CALIBRATION ****************/
+void mpu_calibrate_gyro()
 {
-    //ESP_LOGI(MPUTAG, "Calibrating yaw... keep the sensor still");
+    ESP_LOGI(MPUTAG, "Calibrating gyro... keep still!");
 
     const int samples = 200;
-    int32_t sum = 0;
+    int32_t sum_x = 0, sum_y = 0, sum_z = 0;
     mpu_raw_t raw;
 
     for(int i = 0; i < samples; i++)
     {
         mpu_read_raw(&raw);
-        sum += raw.gyro_z;
-        vTaskDelay(pdMS_TO_TICKS(5));  // Small delay between samples (~200 × 5ms = 1s)
+        sum_x += raw.gyro_x;
+        sum_y += raw.gyro_y;
+        sum_z += raw.gyro_z;
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 
-    gyro_z_offset = (float)sum / samples / 131.0f;
-    //ESP_LOGI(MPUTAG, "Yaw gyro offset = %.5f deg/s", gyro_z_offset);
-}
-/************************************************/
-
-// Single function to calculate roll/pitch/yaw with complementary filter
-mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev, float dt)
-{
-    mpu_angles_t angles;
-
-    float ax = raw.accel_x / 16384.0f;
-    float ay = raw.accel_y / 16384.0f;
-    float az = raw.accel_z / 16384.0f;
-
-    float gx = raw.gyro_x / 131.0f;
-    float gy = raw.gyro_y / 131.0f;
-    float gz = raw.gyro_z / 131.0f;
-
-    float accel_roll  = atan2f(-ax, sqrtf(ay*ay + az*az)) * RAD_TO_DEG;
-    float accel_pitch = -atan2f(ay, az) * RAD_TO_DEG;
-
-    angles.roll  = ALPHA * (prev.roll  + gx * dt) + (1 - ALPHA) * accel_roll;
-    angles.pitch = ALPHA * (prev.pitch + gy * dt) + (1 - ALPHA) * accel_pitch;
-
-    // Yaw = integrate gyro Z minus calibrated offset
-    float gz_corrected = gz - gyro_z_offset;
-    angles.yaw = prev.yaw + gz_corrected * dt;
-
-    return angles;
+    gyro_x_offset = (float)sum_x / samples / 131.0f;
+    gyro_y_offset = (float)sum_y / samples / 131.0f;
+    gyro_z_offset = (float)sum_z / samples / 131.0f;
+    
+    ESP_LOGI(MPUTAG, "Offsets: X=%.2f Y=%.2f Z=%.2f deg/s", 
+             gyro_x_offset, gyro_y_offset, gyro_z_offset);
 }
 
-void mpuDebugPrint(mpu_raw_t raw_data)
+/*************** RATE MODE: Pure Gyro ****************/
+mpu_rates_t mpu_get_rates(mpu_raw_t raw)
 {
-   // ESP_LOGI(MPUTAG, "Accel [X:%6d  Y:%6d  Z:%6d] | Gyro [X:%6d  Y:%6d  Z:%6d]", raw_data.accel_x, raw_data.accel_y, raw_data.accel_z,raw_data.gyro_x, raw_data.gyro_y, raw_data.gyro_z);
+    mpu_rates_t rates;
+    
+    // ONLY gyro data, no accelerometer!
+    rates.rate_roll  = (raw.gyro_x / 131.0f) - gyro_x_offset;
+    rates.rate_pitch = (raw.gyro_y / 131.0f) - gyro_y_offset;
+    rates.rate_yaw   = (raw.gyro_z / 131.0f) - gyro_z_offset;
+    
+    return rates;
 }
 
-void mpuPrintAngles(mpu_angles_t ang)
+void mpuPrintRates(mpu_rates_t rates)
 {
-   // ESP_LOGI(MPUTAG, "Roll: %6.2f | Pitch: %6.2f | Yaw: %6.2f",ang.roll, ang.pitch, ang.yaw);
+    ESP_LOGI(MPUTAG, "Roll: %6.1f | Pitch: %6.1f | Yaw: %6.1f deg/s",
+             rates.rate_roll, rates.rate_pitch, rates.rate_yaw);
 }
