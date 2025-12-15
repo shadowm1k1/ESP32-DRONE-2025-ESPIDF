@@ -75,6 +75,7 @@ void control_task(void *pvParameters)
             sensor_error_count = 0;
             //angles = mpu_get_filtered_angles(raw_data, angles, dt);
             rates = mpu_get_rates(raw_data);
+             ESP_LOGE(PIDTAG,"%f %f %f", rates.rate_roll, rates.rate_pitch, rates.rate_yaw);
         }
         else {
             sensor_error_count++;
