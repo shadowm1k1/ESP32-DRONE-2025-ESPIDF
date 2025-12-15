@@ -25,6 +25,10 @@ volatile bool killswitch = true;
 volatile float contthrottle, controll, contpitch, contyaw;
 volatile float rollp,rolli,rolld,pitchp,pitchi,pitchd,yawp,yawi,yawd;
 
+volatile float set_rate_roll = 0.0f; //deg/s
+volatile float set_rate_pitch = 0.0f;
+volatile float set_rate_yaw = 0.0f;
+
 PID_t pid_roll, pid_pitch, pid_yaw;
 
 
@@ -66,10 +70,11 @@ void control_task(void *pvParameters)
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
+        mpu_rates_t rates = {0};
         if (mpu_read_raw(&raw_data) == ESP_OK) {
             sensor_error_count = 0;
-            angles = mpu_get_filtered_angles(raw_data, angles, dt);
-            
+            //angles = mpu_get_filtered_angles(raw_data, angles, dt);
+            rates = mpu_get_rates(raw_data);
         }
         else {
             sensor_error_count++;
@@ -83,9 +88,9 @@ void control_task(void *pvParameters)
         PID_SetTunings(&pid_pitch,pitchp,pitchi,pitchd);
         PID_SetTunings(&pid_yaw,yawp,yawi,yawd);
         
-        float roll_output  = PID_Compute(&pid_roll,  0.0f, angles.roll, dt); 
-        float pitch_output = PID_Compute(&pid_pitch, 0.0f, angles.pitch, dt);
-        float yaw_output   = PID_Compute(&pid_yaw,   0.0f, angles.yaw,  dt);        
+        float roll_output  = PID_Compute(&pid_roll,  set_rate_roll, rates.rate_roll, dt); 
+        float pitch_output = PID_Compute(&pid_pitch, set_rate_pitch, rates.rate_pitch, dt);
+        float yaw_output   = PID_Compute(&pid_yaw,   set_rate_yaw, rates.rate_yaw,  dt);        
 
         m0 = baseThrottle + roll_output + pitch_output + yaw_output;  // front-left
         m1 = baseThrottle - roll_output + pitch_output - yaw_output;  // front-right
@@ -131,7 +136,7 @@ void app_main(void)
         //ESP_LOGE("MAIN", "Failed to initialize MPU6050");
         return;
     }
-    mpu_calibrate_yaw();
+    mpu_calibrate_gyro();
     
     PID_Init(&pid_roll, 0.5f, 0.0f, 0.0f); //konstanten
     PID_Init(&pid_pitch, 0.5f, 0.00f, 0.0f); //kostanten
@@ -140,7 +145,7 @@ void app_main(void)
     
     PID_SetOutputLimits(&pid_roll, -300, 300);
     PID_SetOutputLimits(&pid_pitch, -300, 300);
-    PID_SetOutputLimits(&pid_yaw, -300, 300);
+    PID_SetOutputLimits(&pid_yaw, -150, 150);
     
     xTaskCreatePinnedToCore(control_task, "control_task", 8192, NULL, 9, NULL, 0);
 

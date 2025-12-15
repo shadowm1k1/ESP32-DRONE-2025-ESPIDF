@@ -25,10 +25,20 @@ typedef struct {
     float yaw;
 } mpu_angles_t;
 
+typedef struct 
+{
+    float rate_roll;
+    float rate_pitch;
+    float rate_yaw;
+}mpu_rates_t;
+
+
 // MPU6050 initialization and data read
 esp_err_t mpu_init(void);
 void mpu_calibrate_yaw();
 esp_err_t mpu_read_raw(mpu_raw_t *data);
+void mpu_calibrate_gyro(void);
+mpu_rates_t mpu_get_rates(mpu_raw_t raw);
 
 // Debug printing
 void mpuDebugPrint(mpu_raw_t rawdata);
