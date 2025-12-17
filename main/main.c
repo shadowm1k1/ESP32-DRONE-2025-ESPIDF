@@ -57,15 +57,15 @@ void control_task(void *pvParameters)
         dt_count++;
         
         if ((now - last_print_time) >= 1000000) { // 1 second in microseconds
-            /*
+            
             float avg_dt = dt_sum / dt_count;
             ESP_LOGI("CONTROL", "Average dt over last second: %.6f s", avg_dt);
             dt_sum = 0.0f;
             dt_count = 0;
-            */
-           ESP_LOGE(PIDTAG,"%f", pid_roll.integral);
             last_print_time = now;
-           
+            /*
+           ESP_LOGE(PIDTAG,"%f", pid_roll.integral);
+           */
         }
 
         // --- Sensor read + PID + motor update ---
