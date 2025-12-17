@@ -19,6 +19,8 @@
 
 
 mpu_angles_t angles = {0}; // Initialize filtered angles
+mpu_rates_t rates = {0};
+
 float m0, m1, m2, m3;
 volatile float baseThrottle = 0;
 volatile bool killswitch = true;
@@ -70,12 +72,11 @@ void control_task(void *pvParameters)
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
-        mpu_rates_t rates = {0};
         if (mpu_read_raw(&raw_data) == ESP_OK) {
             sensor_error_count = 0;
             //angles = mpu_get_filtered_angles(raw_data, angles, dt);
             rates = mpu_get_rates(raw_data);
-             ESP_LOGE(PIDTAG,"%f %f %f", rates.rate_roll, rates.rate_pitch, rates.rate_yaw);
+            //ESP_LOGE(PIDTAG,"%f %f %f", rates.rate_roll, rates.rate_pitch, rates.rate_yaw);
         }
         else {
             sensor_error_count++;
@@ -110,6 +111,7 @@ void control_task(void *pvParameters)
             Motor_SetDuty((uint16_t)m2, 2);
             Motor_SetDuty((uint16_t)m3, 3);
         } else {
+            
             Motor_SetDuty(0, 0);
             Motor_SetDuty(0, 1);
             Motor_SetDuty(0, 2);

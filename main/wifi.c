@@ -96,9 +96,8 @@ void send_integers_continuously(void *pvParameters)
     char msg[128];
     while (1) {
         snprintf(msg, sizeof(msg), "pitch: %.2f , roll: %.2f , yaw: %.2f, m0: %.2f, m1: %.2f , m2: %.2f, m3: %.2f",
-                 angles.pitch, angles.roll ,angles.yaw,m0,m1,m2,m3);
-        int err = sendto(sock, msg, strlen(msg), 0,
-                         (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+                 rates.rate_pitch, rates.rate_roll ,rates.rate_yaw,m0,m1,m2,m3);
+        int err = sendto(sock, msg, strlen(msg), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
             
         //ESP_LOGE(WIFITAG, "UDP send error:  %d", errno);
