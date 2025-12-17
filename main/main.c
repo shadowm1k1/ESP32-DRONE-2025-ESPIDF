@@ -27,25 +27,38 @@ volatile bool killswitch = true;
 volatile float contthrottle, controll, contpitch, contyaw;
 volatile float rollp,rolli,rolld,pitchp,pitchi,pitchd,yawp,yawi,yawd;
 
+
+/*----inner loop ----*/
+PID_t pid_roll_rate, pid_pitch_rate, pid_yaw_rate;
+
+/* ----------  outer-loop instances  ---------- */
+PID_t pid_roll_angle, pid_pitch_angle,pid_yaw_angle;
+
+/* ----------  set-points deg (angles)  ---------- */
+static float target_roll_angle  = 0.0f;
+static float target_pitch_angle = 0.0f;
+static float target_yaw_angle   = 0.0f;
+
+/*---- set points deg/s (rate)*/
 volatile float set_rate_roll = 0.0f; //deg/s
 volatile float set_rate_pitch = 0.0f;
 volatile float set_rate_yaw = 0.0f;
+volatile float target_yaw_rate = 0.0f; 
 
-PID_t pid_roll, pid_pitch, pid_yaw;
 
 
 void control_task(void *pvParameters)
 {
     const TickType_t period_ticks = pdMS_TO_TICKS(1);
-    TickType_t last_wake_time = xTaskGetTickCount();
+    TickType_t last_wake_time = xTaskGetTickCount(); // für 1000hz loop
+    
 
-    int64_t last_time = esp_timer_get_time();
+    int64_t last_time = esp_timer_get_time();//für dt berechnen
     static int sensor_error_count = 0;
 
-    
-    int64_t last_print_time = esp_timer_get_time();
-    float dt_sum = 0.0f;
-    int dt_count = 0;
+    //250hz for angles
+    static int64_t last_angle_us = 0;
+    static int64_t set_pid_konstants_lasttime = 0;
 
     while (1) {
         int64_t now = esp_timer_get_time();
@@ -55,44 +68,42 @@ void control_task(void *pvParameters)
         if (dt < 0.0005f) dt = 0.0005f;   // min 0.5 ms
         if (dt > 0.0050f) dt = 0.0050f;   // max 5.0 ms
 
-        dt_sum += dt;
-        dt_count++;
-        
-        if ((now - last_print_time) >= 1000000) { // 1 second in microseconds
-            
-            float avg_dt = dt_sum / dt_count;
-            ESP_LOGI("CONTROL", "Average dt over last second: %.6f s", avg_dt);
-            dt_sum = 0.0f;
-            dt_count = 0;
-            last_print_time = now;
-            /*
-           ESP_LOGE(PIDTAG,"%f", pid_roll.integral);
-           */
-        }
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
         if (mpu_read_raw(&raw_data) == ESP_OK) {
             sensor_error_count = 0;
-            //angles = mpu_get_filtered_angles(raw_data, angles, dt);
+            angles = mpu_get_filtered_angles(raw_data, angles, dt);
             rates = mpu_get_rates(raw_data);
-            //ESP_LOGE(PIDTAG,"%f %f %f", rates.rate_roll, rates.rate_pitch, rates.rate_yaw);
         }
-        else {
+        else {//sensor not read
             sensor_error_count++;
-            if (sensor_error_count > 10) { // z.B. 100ms Fehler
-                //ESP_LOGE("MAIN", "Sensor mehrfach ausgefallen, Motoren aus!");
+            if (sensor_error_count > 10) {
                 killswitch = true;
             }
         }
         
-        PID_SetTunings(&pid_roll,rollp,rolli,rolld);
-        PID_SetTunings(&pid_pitch,pitchp,pitchi,pitchd);
-        PID_SetTunings(&pid_yaw,yawp,yawi,yawd);
-        
-        float roll_output  = PID_Compute(&pid_roll,  set_rate_roll, rates.rate_roll, dt); 
-        float pitch_output = PID_Compute(&pid_pitch, set_rate_pitch, rates.rate_pitch, dt);
-        float yaw_output   = PID_Compute(&pid_yaw,   set_rate_yaw, rates.rate_yaw,  dt);        
+       if(now - set_pid_konstants_lasttime >= 1000000)
+       {
+            set_pid_konstants_lasttime = now;
+            PID_SetTunings(&pid_roll_rate,rollp,rolli,rolld);
+            PID_SetTunings(&pid_pitch_rate,pitchp,pitchi,pitchd);
+            PID_SetTunings(&pid_yaw_rate,yawp,yawi,yawd);
+       }
+
+        if (now - last_angle_us >= 4000) {          // 250 Hz
+            last_angle_us = now;
+
+            /* compute desired rates from angle error */
+            set_rate_roll  = PID_Compute(&pid_roll_angle,  target_roll_angle,  angles.roll,  dt);
+            set_rate_pitch = PID_Compute(&pid_pitch_angle, target_pitch_angle, angles.pitch, dt);
+            set_rate_yaw   = target_yaw_rate; 
+        }
+
+
+        float roll_output  = PID_Compute(&pid_roll_rate,  set_rate_roll, rates.rate_roll, dt); 
+        float pitch_output = PID_Compute(&pid_pitch_rate , set_rate_pitch, rates.rate_pitch, dt);
+        float yaw_output   = PID_Compute(&pid_yaw_rate,   set_rate_yaw, rates.rate_yaw,  dt);        
 
         m0 = baseThrottle + roll_output + pitch_output + yaw_output;  // front-left
         m1 = baseThrottle - roll_output + pitch_output - yaw_output;  // front-right
@@ -100,6 +111,13 @@ void control_task(void *pvParameters)
         m3 = baseThrottle + roll_output - pitch_output - yaw_output;  // rear-left
 
         
+        float min_m = fminf(fminf(fminf(m0, m1), m2), m3);
+        float max_m = fmaxf(fmaxf(fmaxf(m0, m1), m2), m3);
+        float offset = 0.0f;
+        if (max_m > 1023.0f) offset = 1023.0f - max_m;
+        else if (min_m < 0.0f) offset = -min_m;
+        m0 += offset; m1 += offset; m2 += offset; m3 += offset;
+
         m0 = fminf(fmaxf(m0, 0.0f), 1023.0f);
         m1 = fminf(fmaxf(m1, 0.0f), 1023.0f);
         m2 = fminf(fmaxf(m2, 0.0f), 1023.0f);
@@ -118,9 +136,13 @@ void control_task(void *pvParameters)
             Motor_SetDuty(0, 3);
 
             // PID-Integrator Rücksetzen
-            pid_roll.integral = 0;
-            pid_pitch.integral = 0;
-            pid_yaw.integral = 0;
+            pid_roll_rate.integral = 0;
+            pid_pitch_rate.integral = 0;
+            pid_yaw_rate.integral = 0;
+
+            pid_roll_angle.integral  = 0;
+            pid_pitch_angle.integral = 0;
+            pid_yaw_angle.integral   = 0;
         }
         
         vTaskDelayUntil(&last_wake_time, period_ticks);
@@ -140,15 +162,24 @@ void app_main(void)
         return;
     }
     mpu_calibrate_gyro();
+    //rates pid configuraton inner loop
+    PID_Init(&pid_roll_rate, 0.5f, 0.0f, 0.0f); //konstanten
+    PID_Init(&pid_pitch_rate, 0.5f, 0.00f, 0.0f); //kostanten
+    PID_Init(&pid_yaw_rate, 0.0f, 0.00f, 0.0f); //kostanten
     
-    PID_Init(&pid_roll, 0.5f, 0.0f, 0.0f); //konstanten
-    PID_Init(&pid_pitch, 0.5f, 0.00f, 0.0f); //kostanten
-    PID_Init(&pid_yaw, 0.0f, 0.00f, 0.0f); //kostanten
+    PID_SetOutputLimits(&pid_roll_rate, -300, 300);
+    PID_SetOutputLimits(&pid_pitch_rate, -300, 300);
+    PID_SetOutputLimits(&pid_yaw_rate, -150, 150);
 
-    
-    PID_SetOutputLimits(&pid_roll, -300, 300);
-    PID_SetOutputLimits(&pid_pitch, -300, 300);
-    PID_SetOutputLimits(&pid_yaw, -150, 150);
+    //angle  pid config outer loop
+    PID_Init(&pid_roll_angle,  0.0f, 0.0f, 0.0f);
+    PID_Init(&pid_pitch_angle, 0.0, 0.0f, 0.0f);
+    PID_Init(&pid_yaw_angle,   0.0f, 0.0f, 0.0f);
+
+    PID_SetOutputLimits(&pid_pitch_angle, -10.0f, 10.0f);
+    PID_SetOutputLimits(&pid_roll_angle,  -10.0f, 10.0f);
+    PID_SetOutputLimits(&pid_yaw_angle,  -30.0f, 30.0f);
+
     
     xTaskCreatePinnedToCore(control_task, "control_task", 8192, NULL, 9, NULL, 0);
 

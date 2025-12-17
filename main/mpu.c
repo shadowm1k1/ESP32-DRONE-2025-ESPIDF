@@ -148,9 +148,11 @@ mpu_rates_t mpu_get_rates(mpu_raw_t raw)
 {
     mpu_rates_t rates;
 
-    rates.rate_roll = (raw.gyro_x / 131.0f) - gyro_x_offset;
-    rates.rate_pitch = (raw.gyro_y / 131.0f) - gyro_y_offset;
+    rates.rate_roll = (raw.gyro_y / 131.0f) - gyro_y_offset;
+    rates.rate_pitch = (raw.gyro_x / 131.0f) - gyro_x_offset;
     rates.rate_yaw = (raw.gyro_z / 131.0f) - gyro_z_offset;
+    
+    //ESP_LOGI(MPUTAG, "%f   %f",rates.rate_pitch ,rates.rate_roll);
 
     return rates;
 }
