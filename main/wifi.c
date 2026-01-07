@@ -95,8 +95,8 @@ void send_integers_continuously(void *pvParameters)
 
     char msg[128];
     while (1) {
-        snprintf(msg, sizeof(msg), "pitch: %.2f , roll: %.2f , yaw: %.2f, m0: %.2f, m1: %.2f , m2: %.2f, m3: %.2f",
-                 rates.rate_pitch, rates.rate_roll ,rates.rate_yaw,m0,m1,m2,m3);
+        snprintf(msg, sizeof(msg), "r-p: %.2f , r-r: %.2f , r-y: %.2f, m0: %.2f, m1: %.2f , m2: %.2f, m3: %.2f,a-p: %.2f, a-r %.2f , a-y %.2f",
+                 rates.rate_pitch, rates.rate_roll ,rates.rate_yaw,m0,m1,m2,m3, angles.pitch, angles.roll, angles.yaw);
         int err = sendto(sock, msg, strlen(msg), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
             

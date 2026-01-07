@@ -83,7 +83,7 @@ void control_task(void *pvParameters)
             }
         }
         
-       if(now - set_pid_konstants_lasttime >= 1000000)
+       if(now - set_pid_konstants_lasttime >= 100000) //1000000 for second ||| 100000 for 100ms 
        {
             set_pid_konstants_lasttime = now;
             PID_SetTunings(&pid_roll_rate,rollp,rolli,rolld);
@@ -91,7 +91,7 @@ void control_task(void *pvParameters)
             PID_SetTunings(&pid_yaw_rate,yawp,yawi,yawd);
        }
 
-        if (now - last_angle_us >= 4000) {          // 250 Hz
+        if (now - last_angle_us >= 4000) { // 250 Hz
             last_angle_us = now;
 
             /* compute desired rates from angle error */
