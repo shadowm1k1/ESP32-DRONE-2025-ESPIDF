@@ -39,11 +39,12 @@ static float target_roll_angle  = 0.0f;
 static float target_pitch_angle = 0.0f;
 static float target_yaw_angle   = 0.0f;
 
+volatile float target_yaw_rate = 0.0f; 
+
 /*---- set points deg/s (rate)*/
 volatile float set_rate_roll = 0.0f; //deg/s
 volatile float set_rate_pitch = 0.0f;
 volatile float set_rate_yaw = 0.0f;
-volatile float target_yaw_rate = 0.0f; 
 
 
 
@@ -60,6 +61,7 @@ void control_task(void *pvParameters)
     static int64_t last_angle_us = 0;
     static int64_t set_pid_konstants_lasttime = 0;
 
+    
     while (1) {
         int64_t now = esp_timer_get_time();
         float dt = (now - last_time) * 1e-6f; // seconds
@@ -67,6 +69,10 @@ void control_task(void *pvParameters)
 
         if (dt < 0.0005f) dt = 0.0005f;   // min 0.5 ms
         if (dt > 0.0050f) dt = 0.0050f;   // max 5.0 ms
+
+        set_rate_pitch = contpitch;
+        set_rate_roll = controll;
+        set_rate_yaw = contyaw;
 
 
         // --- Sensor read + PID + motor update ---
@@ -86,8 +92,8 @@ void control_task(void *pvParameters)
        if(now - set_pid_konstants_lasttime >= 100000) //1000000 for second ||| 100000 for 100ms 
        {
             set_pid_konstants_lasttime = now;
-            PID_SetTunings(&pid_roll_rate,rollp,rolli,rolld);
-            PID_SetTunings(&pid_pitch_rate,pitchp,pitchi,pitchd);
+            PID_SetTunings(&pid_roll_angle,rollp,rolli,rolld);
+            PID_SetTunings(&pid_pitch_angle,pitchp,pitchi,pitchd);
             PID_SetTunings(&pid_yaw_rate,yawp,yawi,yawd);
        }
 
@@ -98,6 +104,7 @@ void control_task(void *pvParameters)
             set_rate_roll  = PID_Compute(&pid_roll_angle,  target_roll_angle,  angles.roll,  dt);
             set_rate_pitch = PID_Compute(&pid_pitch_angle, target_pitch_angle, angles.pitch, dt);
             set_rate_yaw   = target_yaw_rate; 
+
         }
 
 
@@ -105,10 +112,17 @@ void control_task(void *pvParameters)
         float pitch_output = PID_Compute(&pid_pitch_rate , set_rate_pitch, rates.rate_pitch, dt);
         float yaw_output   = PID_Compute(&pid_yaw_rate,   set_rate_yaw, rates.rate_yaw,  dt);        
 
-        m0 = baseThrottle + roll_output + pitch_output + yaw_output;  // front-left
-        m1 = baseThrottle - roll_output + pitch_output - yaw_output;  // front-right
-        m2 = baseThrottle - roll_output - pitch_output + yaw_output;  // rear-right
-        m3 = baseThrottle + roll_output - pitch_output - yaw_output;  // rear-left
+        float throttle_factor = contthrottle / 1000;
+        throttle_factor = fmaxf(throttle_factor, 0.2f); // niemals 0
+        
+        roll_output  *= throttle_factor;
+        pitch_output *= throttle_factor;
+        yaw_output   *= throttle_factor;
+
+        m0 = contthrottle + roll_output + pitch_output + yaw_output;  // front-left
+        m1 = contthrottle - roll_output + pitch_output - yaw_output;  // front-right
+        m2 = contthrottle - roll_output - pitch_output + yaw_output;  // rear-right
+        m3 = contthrottle + roll_output - pitch_output - yaw_output;  // rear-left
 
         
         float min_m = fminf(fminf(fminf(m0, m1), m2), m3);
@@ -122,6 +136,14 @@ void control_task(void *pvParameters)
         m1 = fminf(fmaxf(m1, 0.0f), 1023.0f);
         m2 = fminf(fmaxf(m2, 0.0f), 1023.0f);
         m3 = fminf(fmaxf(m3, 0.0f), 1023.0f);
+
+        if(contthrottle < 30)
+        {
+            m0 = 0;
+            m1 = 0;
+            m2 = 0 ;
+            m3 = 0;
+        }
 
         if (!killswitch) {
             Motor_SetDuty((uint16_t)m0, 0);
@@ -162,9 +184,10 @@ void app_main(void)
         return;
     }
     mpu_calibrate_gyro();
+    
     //rates pid configuraton inner loop
-    PID_Init(&pid_roll_rate, 0.5f, 0.0f, 0.0f); //konstanten
-    PID_Init(&pid_pitch_rate, 0.5f, 0.00f, 0.0f); //kostanten
+    PID_Init(&pid_roll_rate, 6.5f, 6.5f, 0.0f); //konstanten
+    PID_Init(&pid_pitch_rate, 0.0f, 0.0f, 0.0f); //kostanten
     PID_Init(&pid_yaw_rate, 0.0f, 0.00f, 0.0f); //kostanten
     
     PID_SetOutputLimits(&pid_roll_rate, -300, 300);
@@ -172,12 +195,12 @@ void app_main(void)
     PID_SetOutputLimits(&pid_yaw_rate, -150, 150);
 
     //angle  pid config outer loop
-    PID_Init(&pid_roll_angle,  0.0f, 0.0f, 0.0f);
-    PID_Init(&pid_pitch_angle, 0.0, 0.0f, 0.0f);
+    PID_Init(&pid_roll_angle,  0.5f, 0.0f, 0.0f);
+    PID_Init(&pid_pitch_angle, 0.0f, 0.0f, 0.0f);
     PID_Init(&pid_yaw_angle,   0.0f, 0.0f, 0.0f);
 
-    PID_SetOutputLimits(&pid_pitch_angle, -10.0f, 10.0f);
-    PID_SetOutputLimits(&pid_roll_angle,  -10.0f, 10.0f);
+    PID_SetOutputLimits(&pid_pitch_angle, -50.0f, 50.0f);
+    PID_SetOutputLimits(&pid_roll_angle,  -50.0f, 50.0f);
     PID_SetOutputLimits(&pid_yaw_angle,  -30.0f, 30.0f);
 
     

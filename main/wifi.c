@@ -11,6 +11,7 @@ extern float baseThrottle;
 extern float contthrottle,controll,contpitch,contyaw;
 extern float rollp,rolli,rolld,pitchp,pitchi,pitchd,yawp,yawi,yawd;
 
+
 static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_id == WIFI_EVENT_STA_START)
@@ -78,7 +79,7 @@ void wifi_connection(void)
 
 void send_integers_continuously(void *pvParameters)
 {
-    const char *dst_ip   = "10.112.61.81";   // PC / drone IP
+    const char *dst_ip   = "10.136.12.81";   // PC / drone IP
     const uint16_t dst_port = 8080;
 
     struct sockaddr_in dest_addr = {
@@ -133,7 +134,7 @@ void udp_receiver_task(void *pvParameters)
         vTaskDelete(NULL);
     }
 
-    char rx_buffer[256];
+    char rx_buffer[300];
     while (1) {
         struct sockaddr_in6 source_addr; // large enough for both IPv4/6
         socklen_t socklen = sizeof(source_addr);
@@ -145,13 +146,13 @@ void udp_receiver_task(void *pvParameters)
             break;
         }
         rx_buffer[len] = 0;
-        //printf("Received UDP: %s\n", rx_buffer);  <----raw udp
+        //printf("Received UDP: %s\n", rx_buffer);//  <----raw udp
 
         int count = sscanf(rx_buffer, "%d,%f,%f, %f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f", &temp_ks_int,&contthrottle,&controll,&contpitch,&contyaw, &rollp, &rolli, &rolld, &pitchp, &pitchi, &pitchd, &yawp, &yawi, &yawd, &baseThrottle);
         killswitch = (temp_ks_int != 0);
 
         if (count == 15) {
-            //printf("Received floats: %d %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n",temp_ks_int ,contthrottle, controll, contpitch, contyaw,  rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd);
+            //printf("Received floats: %d %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n",temp_ks_int ,contthrottle, controll, contpitch, contyaw,  rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd,baseThrottle);
         } else {
             
             //ESP_LOGE(WIFITAG, "Error parsing floats!");

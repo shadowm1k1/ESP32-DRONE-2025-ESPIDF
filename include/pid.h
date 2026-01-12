@@ -5,6 +5,7 @@
 
 static const char *PIDTAG = "PID";
 
+
 typedef struct {
     float kp;
     float ki;
@@ -13,6 +14,8 @@ typedef struct {
     float prevError;
     float outMin;
     float outMax;
+    float integralMin;
+    float integralMax;
 } PID_t;
 
 void PID_Init(PID_t *pid, float kp, float ki, float kd);
