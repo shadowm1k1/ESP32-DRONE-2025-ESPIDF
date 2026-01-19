@@ -174,7 +174,7 @@ void control_task(void *pvParameters)
 
 void app_main(void)
 {
-    wifi_connection();
+    wifi_start();
     // Initialize motors
     Motor_Init();
 

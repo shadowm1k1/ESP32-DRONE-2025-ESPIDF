@@ -1,31 +1,52 @@
-#pragma once
-#include <stdio.h>  // for basic printf commands
-#include <string.h> // for handling strings
-#include "freertos/FreeRTOS.h" // for delay, mutexes, semaphores, RTOS operations
-#include "esp_system.h" // esp_init functions esp_err_t 
-#include "esp_wifi.h" // esp_wifi_init functions and WiFi operations
-#include "esp_log.h" // for showing logs
-#include "esp_event.h" // for WiFi events
-#include "nvs_flash.h" // non-volatile storage
-#include "lwip/err.h" // lightweight IP packets error handling
-#include "lwip/sys.h" // system applications for lightweight IP apps
-#include "lwip/sockets.h"   // for creating and managing TCP/UDP sockets (send/receive data over WiFi)
-#include "lwip/netdb.h"     // for network database operations like hostname/IP lookup and address handling
-#include "mpu.h" 
+#ifndef _WIFI_H_
+#define _WIFI_H_
+
+#include <stdio.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "esp_event.h"
+#include "nvs_flash.h"
+#include "lwip/err.h"
+#include "lwip/sys.h"
+#include "lwip/sockets.h"
+#include "lwip/inet.h"
 #include "esp_timer.h"
 
-extern const char *ssid;
-extern const char *pass;
-extern uint32_t retry_num;
+/* ---------- public API ---------- */
+esp_err_t wifi_start(void);
 
+/* ---------- ports ---------- */
+enum {
+    UDP_TELEM_PORT = 8080,   /* drone → PC binary telemetry */
+    UDP_RX_PORT    = 8081,   /* PC  → drone control */
+    UDP_ERROR_PORT = 8082    /* drone → PC text errors   */
+};
 
-extern mpu_angles_t angles; // Initialize filtered angles
-extern mpu_rates_t rates;
-extern float m0, m1, m2, m3;
+/* ---------- error codes ---------- */
+enum {
+    ERR_NONE = 0, 
+    ERR_LOW_STACK_TX,
+    ERR_LOW_STACK_RX,
+    ERR_UDP_TX_SOCK,
+    ERR_UDP_RX_SOCK,
+};
 
-static const char *WIFITAG = "wifi";
+/* ---------- packed telemetry frame ---------- */
+typedef struct __attribute__((packed)) {
+    float r_p, r_r, r_y;   /* rates  */
+    float m0, m1, m2, m3;  /* motors */
+    float a_p, a_r, a_y;   /* angles */
+    uint8_t err_id;        /* 1-byte code */
+} tel_t;
 
-void wifi_connection(void);
+/* ---------- whitelist ---------- */
+#define TRUSTED_IP  "10.136.12.81"
+
+/* ---------- task entries ---------- */
 void send_integers_continuously(void *pvParameters);
+void udp_receiver_task          (void *pvParameters);
+void send_errors_task           (void *pvParameters);
 
-void udp_receiver_task(void *pvParameters);
+#endif
