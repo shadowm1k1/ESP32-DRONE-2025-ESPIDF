@@ -8,7 +8,6 @@ static const char *WIFI_PASS = "marka1234";
 static uint8_t retry_cnt = 0;
 static int udp_tx_sock = -1;
 static int udp_rx_sock = -1;
-static int udp_err_sock = -1;
 
 
 /*------ variables from main to be chagned --------*/
@@ -26,6 +25,9 @@ extern volatile bool killswitch;
 static char err_buf[ERR_BUF_LEN] = "OK";
 static SemaphoreHandle_t err_mux;
 
+/* ---------- system-wide error flag ---------- */
+volatile uint8_t sys_err_id = ERR_OK;   // any task can set it
+
 /* ---------- event handler ---------- */
 static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
@@ -35,7 +37,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
     else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         udp_tx_sock = -1;
         udp_rx_sock = -1;
-        udp_err_sock = -1;
         if (retry_cnt < 5) {
             esp_wifi_connect();
             retry_cnt++;
@@ -47,8 +48,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
             xTaskCreate(send_integers_continuously, "udp_tx", 4096, NULL, 5, NULL);
         if (udp_rx_sock < 0)
             xTaskCreate(udp_receiver_task,          "udp_rx", 4096, NULL, 5, NULL);
-        if (udp_err_sock < 0)
-            xTaskCreate(send_errors_task,           "udp_err", 4096, NULL, 5, NULL);
     }
 }
 
@@ -82,7 +81,7 @@ esp_err_t wifi_start(void)
     return ESP_OK;
 }
 
-/* ---------- 5 Hz telemetry ---------- */
+/* ---------- 20 Hz telemetry ---------- */
 void send_integers_continuously(void *pvParameters)
 {
     struct sockaddr_in dst = {
@@ -98,7 +97,6 @@ void send_integers_continuously(void *pvParameters)
     TickType_t xLastWake = xTaskGetTickCount();
 
     while (1) {
-        /* pack data */
         t.r_p = rates.rate_pitch;
         t.r_r = rates.rate_roll;
         t.r_y = rates.rate_yaw;
@@ -111,7 +109,8 @@ void send_integers_continuously(void *pvParameters)
         t.a_y = angles.yaw;
 
         /* error code */
-        t.err_id = ERR_OK;
+        t.err_id = sys_err_id;
+
         if (uxTaskGetStackHighWaterMark(NULL) < 100)      t.err_id = ERR_LOW_STACK_TX;
         else if (udp_tx_sock < 0)                           t.err_id = ERR_UDP_TX_SOCK;
 
@@ -120,30 +119,6 @@ void send_integers_continuously(void *pvParameters)
     }
 }
 
-/* ---------- 5 Hz human-readable errors ---------- */
-void send_errors_task(void *pvParameters)
-{
-    struct sockaddr_in dst = {
-        .sin_family = AF_INET,
-        .sin_port   = htons(UDP_ERROR_PORT),
-        .sin_addr.s_addr = inet_addr(TRUSTED_IP)
-    };
-
-    udp_err_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (udp_err_sock < 0) return;
-
-    static char msg[ERR_BUF_LEN];
-    TickType_t xLastWake = xTaskGetTickCount();
-
-    while (1) {
-        xSemaphoreTake(err_mux, portMAX_DELAY);
-        strncpy(msg, err_buf, sizeof(msg));
-        xSemaphoreGive(err_mux);
-
-        sendto(udp_err_sock, msg, strlen(msg), 0, (struct sockaddr *)&dst, sizeof(dst));
-        vTaskDelayUntil(&xLastWake, pdMS_TO_TICKS(200));   /* 5 Hz */
-    }
-}
 
 void udp_receiver_task(void *pvParameters)
 {
@@ -199,6 +174,12 @@ void udp_receiver_task(void *pvParameters)
             snprintf(err_buf, sizeof(err_buf), "BAD_FRAME");
             xSemaphoreGive(err_mux);
         }
+
+        if (uxTaskGetStackHighWaterMark(NULL) < 100)
+        {
+            sys_err_id = ERR_LOW_STACK_RX;
+        }
+
         vTaskDelay(pdMS_TO_TICKS(25));
     }
 }

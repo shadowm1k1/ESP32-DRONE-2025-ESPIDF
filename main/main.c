@@ -34,6 +34,7 @@ PID_t pid_roll_rate, pid_pitch_rate, pid_yaw_rate;
 /* ----------  outer-loop instances  ---------- */
 PID_t pid_roll_angle, pid_pitch_angle,pid_yaw_angle;
 
+
 /* ----------  set-points deg (angles)  ---------- */
 static float target_roll_angle  = 0.0f;
 static float target_pitch_angle = 0.0f;
@@ -57,16 +58,16 @@ void control_task(void *pvParameters)
     int64_t last_time = esp_timer_get_time();//für dt berechnen
     static int sensor_error_count = 0;
 
-    //250hz for angles
-    static int64_t last_angle_us = 0;
-    static int64_t set_pid_konstants_lasttime = 0;
+    static int64_t last_angle_us = 0; // timer für 250hz for angles
+    static int64_t set_pid_konstants_lasttime = 0; // timer für kosntanten
 
     
     while (1) {
-        int64_t now = esp_timer_get_time();
+        int64_t now = esp_timer_get_time(); //elapsed time for dt
         float dt = (now - last_time) * 1e-6f; // seconds
         last_time = now;
-
+        
+        
         if (dt < 0.0005f) dt = 0.0005f;   // min 0.5 ms
         if (dt > 0.0050f) dt = 0.0050f;   // max 5.0 ms
 
@@ -106,7 +107,6 @@ void control_task(void *pvParameters)
             set_rate_yaw   = target_yaw_rate; 
 
         }
-
 
         float roll_output  = PID_Compute(&pid_roll_rate,  set_rate_roll, rates.rate_roll, dt); 
         float pitch_output = PID_Compute(&pid_pitch_rate , set_rate_pitch, rates.rate_pitch, dt);
