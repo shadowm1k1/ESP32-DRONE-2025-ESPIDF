@@ -19,6 +19,8 @@ extern float baseThrottle, contthrottle, controll, contpitch, contyaw;
 extern float rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd;
 extern volatile bool killswitch;
 
+extern float ControlLoopFrequency;
+
 
 /* ---------- circular error buffer ---------- */
 #define ERR_BUF_LEN 40
@@ -107,6 +109,7 @@ void send_integers_continuously(void *pvParameters)
         t.a_p = angles.pitch;
         t.a_r = angles.roll;
         t.a_y = angles.yaw;
+        t.hz = ControlLoopFrequency;
 
         /* error code */
         t.err_id = sys_err_id;
@@ -115,7 +118,7 @@ void send_integers_continuously(void *pvParameters)
         else if (udp_tx_sock < 0)                           t.err_id = ERR_UDP_TX_SOCK;
 
         sendto(udp_tx_sock, &t, sizeof(t), 0, (struct sockaddr *)&dst, sizeof(dst));
-        vTaskDelayUntil(&xLastWake, pdMS_TO_TICKS(50));   /* 20 Hz */
+        vTaskDelayUntil(&xLastWake, pdMS_TO_TICKS(75));   
     }
 }
 
@@ -180,6 +183,6 @@ void udp_receiver_task(void *pvParameters)
             sys_err_id = ERR_LOW_STACK_RX;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(25));
+        vTaskDelay(pdMS_TO_TICKS(25)); // 40hz
     }
 }

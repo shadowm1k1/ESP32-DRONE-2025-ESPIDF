@@ -30,8 +30,8 @@ void PID_SetOutputLimits(PID_t *pid, float min, float max) {
 }
 
 float PID_Compute(PID_t *pid, float setpoint, float measured, float dt) {
+
     float error = setpoint - measured;
-    
     
     pid->integral += error * dt;
     

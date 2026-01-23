@@ -7,7 +7,7 @@
 #define I2C_MASTER_SDA_IO    11
 #define I2C_MASTER_SCL_IO    10
 #define I2C_MASTER_NUM       I2C_NUM_0
-#define I2C_MASTER_FREQ_HZ   400000
+#define I2C_MASTER_FREQ_HZ   800000   
 
 typedef struct {
     int16_t accel_x;

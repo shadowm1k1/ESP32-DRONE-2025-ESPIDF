@@ -19,12 +19,12 @@ static float gyro_y_offset = 0.0f;
 static esp_err_t mpu_write_reg(uint8_t reg, uint8_t data)
 {
     uint8_t buf[2] = { reg, data };
-    return i2c_master_write_to_device(I2C_MASTER_NUM, MPU6050_ADDR, buf, 2, pdMS_TO_TICKS(100));
+    return i2c_master_write_to_device(I2C_MASTER_NUM, MPU6050_ADDR, buf, 2, pdMS_TO_TICKS(10));
 }
 
 static esp_err_t mpu_read_bytes(uint8_t reg, uint8_t *data, size_t len)
 {
-    return i2c_master_write_read_device(I2C_MASTER_NUM, MPU6050_ADDR, &reg, 1, data, len, pdMS_TO_TICKS(100));
+    return i2c_master_write_read_device(I2C_MASTER_NUM, MPU6050_ADDR, &reg, 1, data, len, pdMS_TO_TICKS(10));
 }
 
 esp_err_t mpu_init(void)
@@ -43,6 +43,9 @@ esp_err_t mpu_init(void)
 
     // Wake up MPU6050
     ESP_ERROR_CHECK(mpu_write_reg(0x6B, 0x00));
+    
+    ESP_ERROR_CHECK(mpu_write_reg(0x1A, 0x00)); // CONFIG: no DLPF (lowest latency)
+    ESP_ERROR_CHECK(mpu_write_reg(0x19, 0x00)); // SMPLRT_DIV = 0 → 8 kHz internal
 
     // Check WHO_AM_I
     uint8_t who_am_i = 0;

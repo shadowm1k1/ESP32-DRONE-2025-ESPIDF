@@ -37,6 +37,7 @@ typedef struct __attribute__((packed)) {
     float r_p, r_r, r_y;   /* rates  */
     float m0, m1, m2, m3;  /* motors */
     float a_p, a_r, a_y;   /* angles */
+    float hz;
     uint8_t err_id;        /* 1-byte code */
 } tel_t;
 
