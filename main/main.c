@@ -96,9 +96,10 @@ void control_task(void *pvParameters)
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
+        
         if (mpu_read_raw(&raw_data) == ESP_OK) {
             sensor_error_count = 0;
-            angles = mpu_get_filtered_angles(raw_data, angles, dt);
+            //angles = mpu_get_filtered_angles(raw_data, angles, dt);
             rates = mpu_get_rates(raw_data);
         }
         else {//sensor not read
@@ -130,7 +131,6 @@ void control_task(void *pvParameters)
 
        /*---------- innerer loop von reglern ------------*/
         float roll_output  = PID_Compute(&pid_roll_inner,  set_rate_roll, rates.rate_roll, dt); 
-        
         float pitch_output = PID_Compute(&pid_pitch_inner , set_rate_pitch, rates.rate_pitch, dt);
         float yaw_output   = PID_Compute(&pid_yaw_inner,   set_rate_yaw, rates.rate_yaw,  dt);        
 

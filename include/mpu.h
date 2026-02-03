@@ -40,11 +40,7 @@ esp_err_t mpu_read_raw(mpu_raw_t *data);
 void mpu_calibrate_gyro(void);
 mpu_rates_t mpu_get_rates(mpu_raw_t raw);
 
-// Debug printing
-void mpuDebugPrint(mpu_raw_t rawdata);
 
 // Calculate roll/pitch with complementary filter
 mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev_angles, float dt);
 
-// Print filtered angles
-void mpuPrintAngles(mpu_angles_t angles);

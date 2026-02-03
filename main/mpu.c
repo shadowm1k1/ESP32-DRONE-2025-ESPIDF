@@ -52,10 +52,8 @@ esp_err_t mpu_init(void)
     ESP_ERROR_CHECK(mpu_read_bytes(0x75, &who_am_i, 1));
 
     if (who_am_i == 0x68) {
-        //ESP_LOGI(MPUTAG, "MPU6050 detected (WHO_AM_I=0x%02X)", who_am_i);
         return ESP_OK;
     } else {
-        //ESP_LOGE(MPUTAG, "MPU6050 not found! WHO_AM_I=0x%02X", who_am_i);
         return ESP_FAIL;
     }
 }
@@ -65,7 +63,6 @@ esp_err_t mpu_read_raw(mpu_raw_t *data)
     uint8_t buf[14];
     esp_err_t ret = mpu_read_bytes(0x3B, buf, 14);
     if (ret != ESP_OK) {
-        //ESP_LOGE(MPUTAG, "Failed to read sensor data: %s", esp_err_to_name(ret));
         return ret;
     }
 
@@ -79,10 +76,8 @@ esp_err_t mpu_read_raw(mpu_raw_t *data)
     return ESP_OK;
 }
 
-/*************** YAW CALIBRATION ****************/
 void mpu_calibrate_yaw()
 {
-    //ESP_LOGI(MPUTAG, "Calibrating yaw... keep the sensor still");
 
     const int samples = 200;
     int32_t sum = 0;
@@ -92,18 +87,17 @@ void mpu_calibrate_yaw()
     {
         mpu_read_raw(&raw);
         sum += raw.gyro_z;
-        vTaskDelay(pdMS_TO_TICKS(5));  // Small delay between samples (~200 × 5ms = 1s)
+        vTaskDelay(pdMS_TO_TICKS(5));  
     }
 
     gyro_z_offset = (float)sum / samples / 131.0f;
-    //ESP_LOGI(MPUTAG, "Yaw gyro offset = %.5f deg/s", gyro_z_offset);
 }
 
 void mpu_calibrate_gyro()
 {
     const int samples = 200;
     int32_t sum_x = 0, sum_y = 0, sum_z = 0;
-     mpu_raw_t raw;
+    mpu_raw_t raw;
 
     for(int i = 0; i < samples; i++)
     {
@@ -111,16 +105,13 @@ void mpu_calibrate_gyro()
         sum_z += raw.gyro_z;
         sum_x += raw.gyro_x;
         sum_y += raw.gyro_y;
-        vTaskDelay(pdMS_TO_TICKS(5));  // Small delay between samples (~200 × 5ms = 1s)
+        vTaskDelay(pdMS_TO_TICKS(5));  
     }
 
     gyro_z_offset = (float)sum_z / samples / 131.0f;
     gyro_x_offset = (float)sum_x / samples / 131.0f;
     gyro_y_offset = (float)sum_y / samples / 131.0f;
 }
-/************************************************/
-
-// Single function to calculate roll/pitch/yaw with complementary filter
 
 mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev, float dt)
 {
@@ -155,17 +146,6 @@ mpu_rates_t mpu_get_rates(mpu_raw_t raw)
     rates.rate_pitch = (raw.gyro_x / 131.0f) - gyro_x_offset;
     rates.rate_yaw = (raw.gyro_z / 131.0f) - gyro_z_offset;
     
-    //ESP_LOGI(MPUTAG, "%f   %f",rates.rate_pitch ,rates.rate_roll);
 
     return rates;
-}
-
-void mpuDebugPrint(mpu_raw_t raw_data)
-{
-   // ESP_LOGI(MPUTAG, "Accel [X:%6d  Y:%6d  Z:%6d] | Gyro [X:%6d  Y:%6d  Z:%6d]", raw_data.accel_x, raw_data.accel_y, raw_data.accel_z,raw_data.gyro_x, raw_data.gyro_y, raw_data.gyro_z);
-}
-
-void mpuPrintAngles(mpu_angles_t ang)
-{
-   // ESP_LOGI(MPUTAG, "Roll: %6.2f | Pitch: %6.2f | Yaw: %6.2f",ang.roll, ang.pitch, ang.yaw);
 }
