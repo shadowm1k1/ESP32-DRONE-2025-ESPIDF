@@ -15,8 +15,9 @@ extern float m0, m1, m2, m3;
 extern mpu_angles_t angles;
 extern mpu_rates_t  rates;
 
-extern float baseThrottle, contthrottle, controll, contpitch, contyaw;
+extern float  contthrottle, controll, contpitch, contyaw;
 extern float rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd;
+extern float anglerollp,anglerolli,anglerolld, anglepitchp,anglepitchi,anglepitchd;
 extern volatile bool killswitch;
 
 extern float ControlLoopFrequency;
@@ -142,7 +143,7 @@ void udp_receiver_task(void *pvParameters)
     static struct {
         int   ks;
         float throttle, roll, pitch, yaw;
-        float rp, ri, rd, pp, pi, pd, yp, yi, yd, base;
+        float rp, ri, rd, pp, pi, pd, yp, yi, yd,arp,ari,ard, app, api, apd, base;
     } rx;
 
     char buf[300];
@@ -154,13 +155,16 @@ void udp_receiver_task(void *pvParameters)
         buf[len] = 0;
         if (from.sin_addr.s_addr != inet_addr(TRUSTED_IP)) continue;
 
-        int n = sscanf(buf, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f",
+        int n = sscanf(buf, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f",
                        &rx.ks, &rx.throttle, &rx.roll, &rx.pitch, &rx.yaw,
                        &rx.rp, &rx.ri, &rx.rd,
                        &rx.pp, &rx.pi, &rx.pd,
-                       &rx.yp, &rx.yi, &rx.yd, &rx.base);
+                       &rx.yp, &rx.yi, &rx.yd, 
+                       &rx.arp,&rx.ari,&rx.ard,
+                       &rx.app,&rx.api,&rx.apd,
+                       &rx.base);
 
-        if (n == 15) {
+        if (n == 21) {
             killswitch   = (rx.ks != 0);
             contthrottle = rx.throttle;
             controll     = rx.roll;
@@ -169,7 +173,9 @@ void udp_receiver_task(void *pvParameters)
             rollp = rx.rp; rolli = rx.ri; rolld = rx.rd;
             pitchp = rx.pp; pitchi = rx.pi; pitchd = rx.pd;
             yawp = rx.yp; yawi = rx.yi; yawd = rx.yd;
-            baseThrottle = rx.base;
+            anglerollp = rx.arp; anglerolli = rx.ari; anglerolld = rx.ard;
+            anglepitchp = rx.app; anglepitchi = rx.api; anglepitchd = rx.apd;
+
         } else {
             /* bad frame – zero everything */
             killswitch = false;

@@ -1,12 +1,15 @@
 #include "../include/pid.h"
 
 extern float contthrottle;
+
 void PID_Init(PID_t *pid, float kp, float ki, float kd) {
     pid->kp = kp;
     pid->ki = ki;
     pid->kd = kd;
     pid->integral = 0.0f;
     pid->prevError = 0.0f;
+    pid->prevMeasured = 0.0f;
+    pid->filteredDerivative = 0.0f;
     pid->outMin = -30.0f;
     pid->outMax = 30.0f;
     pid->integralMin = 0.0f;
@@ -30,25 +33,27 @@ void PID_SetOutputLimits(PID_t *pid, float min, float max) {
 }
 
 float PID_Compute(PID_t *pid, float setpoint, float measured, float dt) {
-
     float error = setpoint - measured;
     
     pid->integral += error * dt;
     
-
     if (pid->integral > pid->integralMax)
         pid->integral = pid->integralMax;
     else if (pid->integral < pid->integralMin)
         pid->integral = pid->integralMin;
 
-    float derivative = (error - pid->prevError) / dt;
-
-    float output = pid->kp * error + pid->ki * pid->integral + pid->kd * derivative;
+    float derivative = -(measured - pid->prevMeasured) / dt;
+    
+    float alpha = 0.05f;
+    pid->filteredDerivative = alpha * derivative + (1.0f - alpha) * pid->filteredDerivative;
+    
+    float output = pid->kp * error + pid->ki * pid->integral + pid->kd * pid->filteredDerivative;
 
     if (output > pid->outMax) output = pid->outMax;
     else if (output < pid->outMin) output = pid->outMin;
 
     pid->prevError = error;
+    pid->prevMeasured = measured;
     return output;
 }
 

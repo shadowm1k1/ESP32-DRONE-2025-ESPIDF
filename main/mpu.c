@@ -44,7 +44,8 @@ esp_err_t mpu_init(void)
     // Wake up MPU6050
     ESP_ERROR_CHECK(mpu_write_reg(0x6B, 0x00));
     
-    ESP_ERROR_CHECK(mpu_write_reg(0x1A, 0x00)); // CONFIG: no DLPF (lowest latency)
+    //ESP_ERROR_CHECK(mpu_write_reg(0x1A, 0x00)); // CONFIG: no DLPF (lowest latency)
+    ESP_ERROR_CHECK(mpu_write_reg(0x1A, 0x03)); // DLPF at 41Hz (less noise)
     ESP_ERROR_CHECK(mpu_write_reg(0x19, 0x00)); // SMPLRT_DIV = 0 → 8 kHz internal
 
     // Check WHO_AM_I
@@ -113,27 +114,32 @@ void mpu_calibrate_gyro()
     gyro_y_offset = (float)sum_y / samples / 131.0f;
 }
 
+
 mpu_angles_t mpu_get_filtered_angles(mpu_raw_t raw, mpu_angles_t prev, float dt)
 {
     mpu_angles_t angles;
 
+    // Normalize accel
     float ax = raw.accel_x / 16384.0f;
     float ay = raw.accel_y / 16384.0f;
     float az = raw.accel_z / 16384.0f;
 
-    float gx = raw.gyro_x / 131.0f;
-    float gy = raw.gyro_y / 131.0f;
-    float gz = raw.gyro_z / 131.0f;
+    // Gyro in deg/s (SWAPPED for 90° rotated mounting)
+    // If chip is rotated 90° CW: new_X = old_Y, new_Y = -old_X
+    float gx = (raw.gyro_y / 131.0f) - gyro_y_offset;   // Roll rate (was Y)
+    float gy = -(raw.gyro_x / 131.0f) - gyro_x_offset;  // Pitch rate (was -X)
+    float gz = (raw.gyro_z / 131.0f) - gyro_z_offset;   // Yaw rate unchanged
 
-    float accel_roll  = atan2f(-ax, sqrtf(ay*ay + az*az)) * RAD_TO_DEG;
-    float accel_pitch = -atan2f(ay, az) * RAD_TO_DEG;
+    // Accel angles (SWAPPED)
+    float accel_roll  = atan2f(-ax, sqrtf(ay*ay + az*az)) * RAD_TO_DEG;  // Roll uses X
+    float accel_pitch = atan2f(ay, az) * RAD_TO_DEG;                     // Pitch uses Y
 
+    // Complementary filter
     angles.roll  = ALPHA * (prev.roll  + gx * dt) + (1 - ALPHA) * accel_roll;
     angles.pitch = ALPHA * (prev.pitch + gy * dt) + (1 - ALPHA) * accel_pitch;
-
-    // Yaw = integrate gyro Z minus calibrated offset
-    float gz_corrected = gz - gyro_z_offset;
-    angles.yaw = prev.yaw + gz_corrected * dt;
+    
+    // Yaw from gyro only
+    angles.yaw = prev.yaw + gz * dt;
 
     return angles;
 }
@@ -142,10 +148,10 @@ mpu_rates_t mpu_get_rates(mpu_raw_t raw)
 {
     mpu_rates_t rates;
 
-    rates.rate_roll = (raw.gyro_y / 131.0f) - gyro_y_offset;
-    rates.rate_pitch = (raw.gyro_x / 131.0f) - gyro_x_offset;
-    rates.rate_yaw = (raw.gyro_z / 131.0f) - gyro_z_offset;
-    
+    // SWAPPED for 90° rotated mounting
+    rates.rate_roll  = (raw.gyro_y / 131.0f) - gyro_y_offset;    // Roll from Y gyro
+    rates.rate_pitch = -(raw.gyro_x / 131.0f) - gyro_x_offset;    // Pitch from -X gyro
+    rates.rate_yaw   = (raw.gyro_z / 131.0f) - gyro_z_offset;     // Yaw unchanged
 
     return rates;
 }
