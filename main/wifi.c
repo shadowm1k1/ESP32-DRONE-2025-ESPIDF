@@ -20,6 +20,7 @@ extern float rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd;
 extern float anglerollp,anglerolli,anglerolld, anglepitchp,anglepitchi,anglepitchd;
 extern volatile bool killswitch;
 
+bool waskillswitched = false;
 extern float ControlLoopFrequency;
 
 
@@ -123,7 +124,6 @@ void send_integers_continuously(void *pvParameters)
     }
 }
 
-
 void udp_receiver_task(void *pvParameters)
 {
     struct sockaddr_in server = {
@@ -140,6 +140,10 @@ void udp_receiver_task(void *pvParameters)
         return;
     }
 
+    /* ---------- timeout watchdog setup ---------- */
+    #define RX_TIMEOUT_MS    300
+    #define WATCHDOG_PERIOD  50  // Check every 50ms
+    
     static struct {
         int   ks;
         float throttle, roll, pitch, yaw;
@@ -147,48 +151,86 @@ void udp_receiver_task(void *pvParameters)
     } rx;
 
     char buf[300];
+    TickType_t last_rx_time = xTaskGetTickCount();
+    bool timeout_active = false;
+
+    /* Set socket receive timeout for non-blocking check */
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = WATCHDOG_PERIOD * 1000;  // 50ms timeout for recvfrom
+    setsockopt(udp_rx_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
     while (1) {
         struct sockaddr_in from;
         socklen_t flen = sizeof(from);
+        
+        /* Non-blocking receive with timeout */
         int len = recvfrom(udp_rx_sock, buf, sizeof(buf)-1, 0, (struct sockaddr *)&from, &flen);
-        if (len <= 0) continue;
-        buf[len] = 0;
-        if (from.sin_addr.s_addr != inet_addr(TRUSTED_IP)) continue;
+        
+        TickType_t now = xTaskGetTickCount();
+        
+        if (len > 0) {
+            /* ---------- DATA RECEIVED ---------- */
+            buf[len] = 0;
+            
+            if (from.sin_addr.s_addr == inet_addr(TRUSTED_IP)) {
+                int n = sscanf(buf, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f",
+                               &rx.ks, &rx.throttle, &rx.roll, &rx.pitch, &rx.yaw,
+                               &rx.rp, &rx.ri, &rx.rd,
+                               &rx.pp, &rx.pi, &rx.pd,
+                               &rx.yp, &rx.yi, &rx.yd, 
+                               &rx.arp,&rx.ari,&rx.ard,
+                               &rx.app,&rx.api,&rx.apd,
+                               &rx.base);
 
-        int n = sscanf(buf, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f",
-                       &rx.ks, &rx.throttle, &rx.roll, &rx.pitch, &rx.yaw,
-                       &rx.rp, &rx.ri, &rx.rd,
-                       &rx.pp, &rx.pi, &rx.pd,
-                       &rx.yp, &rx.yi, &rx.yd, 
-                       &rx.arp,&rx.ari,&rx.ard,
-                       &rx.app,&rx.api,&rx.apd,
-                       &rx.base);
-
-        if (n == 21) {
-            killswitch   = (rx.ks != 0);
-            contthrottle = rx.throttle;
-            controll     = rx.roll;
-            contpitch    = rx.pitch;
-            contyaw      = rx.yaw;
-            rollp = rx.rp; rolli = rx.ri; rolld = rx.rd;
-            pitchp = rx.pp; pitchi = rx.pi; pitchd = rx.pd;
-            yawp = rx.yp; yawi = rx.yi; yawd = rx.yd;
-            anglerollp = rx.arp; anglerolli = rx.ari; anglerolld = rx.ard;
-            anglepitchp = rx.app; anglepitchi = rx.api; anglepitchd = rx.apd;
-
-        } else {
-            /* bad frame – zero everything */
-            killswitch = false;
-            xSemaphoreTake(err_mux, portMAX_DELAY);
-            snprintf(err_buf, sizeof(err_buf), "BAD_FRAME");
-            xSemaphoreGive(err_mux);
+                if (n == 21) {
+                    if(!waskillswitched)
+                    {
+                        killswitch   = (rx.ks != 0);
+                    }
+                    contthrottle = rx.throttle;
+                    controll     = rx.roll;
+                    contpitch    = rx.pitch;
+                    contyaw      = rx.yaw;
+                    rollp = rx.rp; rolli = rx.ri; rolld = rx.rd;
+                    pitchp = rx.pp; pitchi = rx.pi; pitchd = rx.pd;
+                    yawp = rx.yp; yawi = rx.yi; yawd = rx.yd;
+                    anglerollp = rx.arp; anglerolli = rx.ari; anglerolld = rx.ard;
+                    anglepitchp = rx.app; anglepitchi = rx.api; anglepitchd = rx.apd;
+                    
+                    /* Reset watchdog */
+                    last_rx_time = now;
+                    timeout_active = false;
+                    
+                } else {
+                    /* Bad frame - keep previous watchdog state, but log error */
+                    xSemaphoreTake(err_mux, portMAX_DELAY);
+                    snprintf(err_buf, sizeof(err_buf), "BAD_FRAME");
+                    xSemaphoreGive(err_mux);
+                }
+            }
+        }
+        
+        /* ---------- WATCHDOG CHECK ---------- */
+        uint32_t elapsed = (now - last_rx_time) * portTICK_PERIOD_MS;
+        
+        if (elapsed > RX_TIMEOUT_MS) {
+            if (!timeout_active) {
+                /* First time detecting timeout - engage killswitch */
+                killswitch = true;  // EMERGENCY STOP
+                timeout_active = true;
+                waskillswitched = true;
+                
+                xSemaphoreTake(err_mux, portMAX_DELAY);
+                snprintf(err_buf, sizeof(err_buf), "RX_TIMEOUT");
+                xSemaphoreGive(err_mux);
+                
+            }
         }
 
-        if (uxTaskGetStackHighWaterMark(NULL) < 100)
-        {
+        /* Stack check */
+        if (uxTaskGetStackHighWaterMark(NULL) < 100) {
             sys_err_id = ERR_LOW_STACK_RX;
         }
-
-        vTaskDelay(pdMS_TO_TICKS(25)); // 40hz
     }
 }
