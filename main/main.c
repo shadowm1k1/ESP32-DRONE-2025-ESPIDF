@@ -15,11 +15,14 @@
 #include "../include/mpu.h"
 #include "../include/pid.h"
 #include "../include/wifi.h"
+#include "../include/flow.h"
 
-
-
+ // mpu data
 mpu_angles_t angles = {0}; // Initialize filtered angles
 mpu_rates_t rates = {0};
+
+//flow data
+flow_data_t my_flow;
 
 float m0, m1, m2, m3;
 static float current_throttle = 0.0f;
@@ -38,20 +41,17 @@ volatile float set_rate_roll = 0.0f;
 volatile float set_rate_pitch = 0.0f;
 volatile float set_rate_yaw = 0.0f;
 
-/*------------------------------------------------------------*/
-
-
 // ----------  outer-loop instances  ---------- 
-PID_t pid_roll_angle, pid_pitch_angle,pid_yaw_angle;
+PID_t pid_roll_angle, pid_pitch_angle;
 
 static float target_roll_angle  = 0.0f;
 static float target_pitch_angle = 0.0f;
 static float target_yaw_angle   = 0.0f;
-
 volatile float target_yaw_rate = 0.0f; 
 
-/*
-*/
+// ----------- Flow X Y PIDS ----------------
+
+PID_t pid_flow_x, pid_flow_y,pid_flow_height;
 
 
 void control_task(void *pvParameters)
@@ -104,10 +104,11 @@ void control_task(void *pvParameters)
             dt_count = 0;
         }
 
+        /*
         target_roll_angle  = controll / 5.0f;   // stick input = desired angle
         target_pitch_angle = contpitch / 5.0f;  // e.g., ±30° max tilt
         target_yaw_rate    = contyaw / 5.0f; 
-
+        */
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
@@ -123,16 +124,20 @@ void control_task(void *pvParameters)
                 killswitch = true;
             }
         }
+
+        flow_update();
+        flow_get_data(&my_flow);
         
        if(now - set_pid_konstants_lasttime >= 100000) //1000000 for second ||| 100000 for 100ms 
        {
             set_pid_konstants_lasttime = now;
-            PID_SetTunings(&pid_roll_inner,rollp,rolli,rolld);
-            PID_SetTunings(&pid_pitch_inner,pitchp,pitchi,pitchd);
-            PID_SetTunings(&pid_yaw_inner,yawp,yawi,yawd);
-            PID_SetTunings(&pid_roll_angle,anglerollp,anglerolli,anglerolld);
-            PID_SetTunings(&pid_pitch_angle,anglepitchp,anglepitchi,anglepitchd);
+            PID_SetTunings(&pid_flow_x,rollp,rolli,rolld);
+            PID_SetTunings(&pid_flow_y,pitchp,pitchi,pitchd);
+            PID_SetTunings(&pid_flow_height,yawp,yawi,yawd);
        }
+       
+        target_pitch_angle = PID_Compute(&pid_flow_x, 0, my_flow.total_x,dt);
+        target_roll_angle = PID_Compute(&pid_flow_y,0,my_flow.total_y,dt);
 
        
         if (now - last_angle_us >= 4000) { // 250 Hz
@@ -144,8 +149,6 @@ void control_task(void *pvParameters)
             set_rate_yaw   = target_yaw_rate; 
 
         }
-        /*
-        */
 
         if(contthrottle <= 300)
         {
@@ -155,7 +158,7 @@ void control_task(void *pvParameters)
 
             pid_roll_angle.integral  = 0;
             pid_pitch_angle.integral = 0;
-            pid_yaw_angle.integral   = 0;
+            flow_reset_val();
         }
 
        /*---------- innerer loop von reglern ------------*/
@@ -222,6 +225,9 @@ void app_main(void)
     // Initialize motors
     Motor_Init();
 
+    flow_uart_init();
+     
+
     // Initialize MPU6050
     if (mpu_init() != ESP_OK) {
         //ESP_LOGE("MAIN", "Failed to initialize MPU6050");
@@ -230,9 +236,9 @@ void app_main(void)
     mpu_calibrate_gyro();
     
     //rates pid configuraton inner loop
-    PID_Init(&pid_roll_inner, 2.5f, 1.0f, 0.0f); //konstanten
+    PID_Init(&pid_roll_inner, 2.0f, 0.8f, 0.0f); //konstanten
     PID_Init(&pid_pitch_inner, 0.0f, 0.0f, 0.0f); //kostanten
-    PID_Init(&pid_yaw_inner, 0.0f, 0.00f, 0.0f); //kostanten
+    PID_Init(&pid_yaw_inner, 0.0f, 0.0f, 0.0f); //kostanten
     
     PID_SetOutputLimits(&pid_roll_inner, -300, 300);
     PID_SetOutputLimits(&pid_pitch_inner, -300, 300);
@@ -240,15 +246,20 @@ void app_main(void)
 
     //angle  pid config outer loop
     
-    PID_Init(&pid_roll_angle,  0.0f, 0.0f, 0.0f);
+    PID_Init(&pid_roll_angle,  0.8f, 0.5f, 0.01f);
     PID_Init(&pid_pitch_angle, 0.0f, 0.0f, 0.0f);
-    PID_Init(&pid_yaw_angle,   0.0f, 0.0f, 0.0f);
 
     PID_SetOutputLimits(&pid_pitch_angle, -300.0f, 300.0f);
     PID_SetOutputLimits(&pid_roll_angle,  -300.0f, 300.0f);
-    PID_SetOutputLimits(&pid_yaw_angle,  -150.0f, 150.0f);
-    /*
-    */
+
+    // ----------- flow x y height pid inits --------
+    PID_Init(&pid_flow_x,  0.0f, 0.0f, 0.0f);
+    PID_Init(&pid_flow_y, 0.0f, 0.0f, 0.0f);
+    PID_Init(&pid_flow_height,   0.0f, 0.0f, 0.0f);
+
+    PID_SetOutputLimits(&pid_flow_x, -150.0f, 150.0f);
+    PID_SetOutputLimits(&pid_flow_y,  -150.0f, 150.0f);
+    PID_SetOutputLimits(&pid_flow_height,  -150.0f, 150.0f);
     
     xTaskCreatePinnedToCore(control_task, "control_task", 8192, NULL, 9, NULL, 0);
 
