@@ -17,6 +17,9 @@
 #include "../include/wifi.h"
 #include "../include/flow.h"
 
+
+volatile int flight_mode = 0;
+
  // mpu data
 mpu_angles_t angles = {0}; // Initialize filtered angles
 mpu_rates_t rates = {0};
@@ -46,12 +49,15 @@ PID_t pid_roll_angle, pid_pitch_angle;
 
 static float target_roll_angle  = 0.0f;
 static float target_pitch_angle = 0.0f;
-static float target_yaw_angle   = 0.0f;
 volatile float target_yaw_rate = 0.0f; 
 
 // ----------- Flow X Y PIDS ----------------
 
 PID_t pid_flow_x, pid_flow_y,pid_flow_height;
+static float setPosX = 0;
+static float setPosY = 0;
+static float setHeight = 0;
+
 
 
 void control_task(void *pvParameters)
@@ -104,11 +110,19 @@ void control_task(void *pvParameters)
             dt_count = 0;
         }
 
-        /*
-        target_roll_angle  = controll / 5.0f;   // stick input = desired angle
-        target_pitch_angle = contpitch / 5.0f;  // e.g., ±30° max tilt
-        target_yaw_rate    = contyaw / 5.0f; 
-        */
+
+        if(flight_mode == 0)
+        {
+            setPosX = 0;
+            setPosY = 0;
+
+        }else if ( flight_mode == 1)
+        {
+            setPosX  += controll / 100.0f;  
+            setPosY += contpitch / 100.0f;
+            target_yaw_rate = contyaw/ 5.0f;
+        }
+
 
         // --- Sensor read + PID + motor update ---
         mpu_raw_t raw_data;
@@ -136,8 +150,8 @@ void control_task(void *pvParameters)
             PID_SetTunings(&pid_flow_height,yawp,yawi,yawd);
        }
        
-        target_pitch_angle = PID_Compute(&pid_flow_x, 0, my_flow.total_x,dt);
-        target_roll_angle = PID_Compute(&pid_flow_y,0,my_flow.total_y,dt);
+        target_pitch_angle = PID_Compute(&pid_flow_x, setPosX, my_flow.total_x/5,dt);
+        target_roll_angle = PID_Compute(&pid_flow_y,setPosY,my_flow.total_y/5,dt);
 
        
         if (now - last_angle_us >= 4000) { // 250 Hz
@@ -147,7 +161,6 @@ void control_task(void *pvParameters)
             set_rate_roll  = PID_Compute(&pid_roll_angle,  target_roll_angle,  angles.roll,  outer_loop_dt);
             set_rate_pitch = PID_Compute(&pid_pitch_angle, target_pitch_angle, -angles.pitch, outer_loop_dt);
             set_rate_yaw   = target_yaw_rate; 
-
         }
 
         if(contthrottle <= 300)
@@ -166,20 +179,10 @@ void control_task(void *pvParameters)
         float pitch_output = PID_Compute(&pid_pitch_inner , set_rate_pitch, rates.rate_pitch, dt);
         float yaw_output   = PID_Compute(&pid_yaw_inner,   set_rate_yaw, rates.rate_yaw,  dt);        
 
-        /*
-        float throttle_factor = contthrottle / 1000;
-        throttle_factor = fmaxf(throttle_factor, 0.2f); // niemals 0
-        
-        roll_output  *= throttle_factor;
-        pitch_output *= throttle_factor;
-        yaw_output   *= throttle_factor;
-       */
-
         m0 = current_throttle  + roll_output - pitch_output + yaw_output;  // front-left
         m1 = current_throttle  - roll_output - pitch_output - yaw_output;  // front-right
         m2 = current_throttle  - roll_output + pitch_output + yaw_output;  // rear-right
         m3 = current_throttle  + roll_output + pitch_output - yaw_output;  // rear-left
-
 
        /*------------- motor min und max setzen ----------- */
        if(m0 <0.0f ) m0 = 0.0f; 
@@ -227,7 +230,6 @@ void app_main(void)
 
     flow_uart_init();
      
-
     // Initialize MPU6050
     if (mpu_init() != ESP_OK) {
         //ESP_LOGE("MAIN", "Failed to initialize MPU6050");

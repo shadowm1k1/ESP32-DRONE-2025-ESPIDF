@@ -18,7 +18,8 @@ extern mpu_rates_t  rates;
 extern float  contthrottle, controll, contpitch, contyaw;
 extern float rollp, rolli, rolld, pitchp, pitchi, pitchd, yawp, yawi, yawd;
 extern float anglerollp,anglerolli,anglerolld, anglepitchp,anglepitchi,anglepitchd;
-extern volatile bool killswitch;
+extern bool killswitch;
+extern int flight_mode;
 
 bool waskillswitched = false;
 extern float ControlLoopFrequency;
@@ -148,6 +149,7 @@ void udp_receiver_task(void *pvParameters)
         int   ks;
         float throttle, roll, pitch, yaw;
         float rp, ri, rd, pp, pi, pd, yp, yi, yd,arp,ari,ard, app, api, apd, base;
+        int flight_mode;
     } rx;
 
     char buf[300];
@@ -174,16 +176,16 @@ void udp_receiver_task(void *pvParameters)
             buf[len] = 0;
             
             if (from.sin_addr.s_addr == inet_addr(TRUSTED_IP)) {
-                int n = sscanf(buf, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f",
+                int n = sscanf(buf, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d",
                                &rx.ks, &rx.throttle, &rx.roll, &rx.pitch, &rx.yaw,
                                &rx.rp, &rx.ri, &rx.rd,
                                &rx.pp, &rx.pi, &rx.pd,
                                &rx.yp, &rx.yi, &rx.yd, 
                                &rx.arp,&rx.ari,&rx.ard,
                                &rx.app,&rx.api,&rx.apd,
-                               &rx.base);
+                               &rx.base, &rx.flight_mode);
 
-                if (n == 21) {
+                if (n == 22) {
                     if(!waskillswitched)
                     {
                         killswitch   = (rx.ks != 0);
@@ -197,6 +199,7 @@ void udp_receiver_task(void *pvParameters)
                     yawp = rx.yp; yawi = rx.yi; yawd = rx.yd;
                     anglerollp = rx.arp; anglerolli = rx.ari; anglerolld = rx.ard;
                     anglepitchp = rx.app; anglepitchi = rx.api; anglepitchd = rx.apd;
+                    flight_mode = rx.flight_mode;
                     
                     /* Reset watchdog */
                     last_rx_time = now;
