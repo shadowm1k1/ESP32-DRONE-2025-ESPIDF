@@ -7,8 +7,8 @@
 
 #define FLOW_UART_NUM       UART_NUM_1
 #define FLOW_UART_BAUD_RATE 19200
-#define FLOW_UART_TX_PIN    41
-#define FLOW_UART_RX_PIN    40
+#define FLOW_UART_TX_PIN    41 // grün muss auf rx von flow steckt auf pin 41
+#define FLOW_UART_RX_PIN    40 // gelbkabel auf tx von flow steckt auf pin 40
 #define FLOW_BUF_SIZE       256
 
 #define PACKET_HEADER_1     0xFE

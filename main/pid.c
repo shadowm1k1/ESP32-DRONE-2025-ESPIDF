@@ -13,7 +13,7 @@ void PID_Init(PID_t *pid, float kp, float ki, float kd) {
     pid->outMin = -30.0f;
     pid->outMax = 30.0f;
     pid->integralMin = 0.0f;
-    pid->integralMax = 0.0f;
+    pid->integralMax = 300.0f;
 }
 
 void PID_SetTunings(PID_t *pid, float kp, float ki, float kd) {
@@ -21,10 +21,10 @@ void PID_SetTunings(PID_t *pid, float kp, float ki, float kd) {
     pid->ki = ki;
     pid->kd = kd;
 
-     if (ki > 0.0f) {
-        pid->integralMax = pid->outMax / ki;
-        pid->integralMin = pid->outMin / ki;
-    }
+    //if (ki > 0.0f) {
+     //   pid->integralMax = pid->outMax / ki;
+     //   pid->integralMin = pid->outMin / ki;
+    //}
 }
 
 void PID_SetOutputLimits(PID_t *pid, float min, float max) {

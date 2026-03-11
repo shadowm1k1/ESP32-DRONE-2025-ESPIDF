@@ -1,6 +1,9 @@
 #include "wifi.h"
 #include "mpu.h" //   ----->   /* angles, rates, m0…m3 */
 
+#include "esp_log.h"
+#include "lwip/inet.h"
+
 /*----- wifi socks and data -------*/
 static const char *WIFI_SSID = "Netvorkes";
 static const char *WIFI_PASS = "marka1234";
@@ -184,7 +187,7 @@ void udp_receiver_task(void *pvParameters)
                                &rx.arp,&rx.ari,&rx.ard,
                                &rx.app,&rx.api,&rx.apd,
                                &rx.base, &rx.flight_mode);
-
+                               
                 if (n == 22) {
                     if(!waskillswitched)
                     {
@@ -216,10 +219,9 @@ void udp_receiver_task(void *pvParameters)
         
         /* ---------- WATCHDOG CHECK ---------- */
         uint32_t elapsed = (now - last_rx_time) * portTICK_PERIOD_MS;
-        
+        /*
         if (elapsed > RX_TIMEOUT_MS) {
             if (!timeout_active) {
-                /* First time detecting timeout - engage killswitch */
                 killswitch = true;  // EMERGENCY STOP
                 timeout_active = true;
                 waskillswitched = true;
@@ -230,7 +232,7 @@ void udp_receiver_task(void *pvParameters)
                 
             }
         }
-
+        */
         /* Stack check */
         if (uxTaskGetStackHighWaterMark(NULL) < 100) {
             sys_err_id = ERR_LOW_STACK_RX;

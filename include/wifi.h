@@ -20,7 +20,7 @@ esp_err_t wifi_start(void);
 /* ---------- ports ---------- */
 enum {
     UDP_TELEM_PORT = 8080,   /* drone → PC binary telemetry */
-    UDP_RX_PORT    = 8081,   /* PC  → drone control */
+    UDP_RX_PORT    = 8082,   /* PC  → drone control */
 };
 
 /* ---------- error codes ---------- */
@@ -42,7 +42,7 @@ typedef struct __attribute__((packed)) {
 } tel_t;
 
 /* ---------- whitelist ---------- */
-#define TRUSTED_IP  "10.204.66.81"
+#define TRUSTED_IP  "10.66.85.81"
 
 /* ---------- task entries ---------- */
 void send_integers_continuously(void *pvParameters);
