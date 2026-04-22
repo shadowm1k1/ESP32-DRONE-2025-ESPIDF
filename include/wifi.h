@@ -42,7 +42,7 @@ typedef struct __attribute__((packed)) {
 } tel_t;
 
 /* ---------- whitelist ---------- */
-#define TRUSTED_IP  "10.66.85.81"
+#define TRUSTED_IP  "10.201.97.81"
 
 /* ---------- task entries ---------- */
 void send_integers_continuously(void *pvParameters);
